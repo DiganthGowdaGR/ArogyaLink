@@ -5,11 +5,18 @@ import { DoctorIcon } from '@/components/doctor/DoctorIcon';
 import { DoctorScreen } from '@/components/doctor/DoctorScreen';
 import { AppButton, AppText, Card, SectionHeader } from '@/components/ui';
 import { routes } from '@/config/navigation';
+import { useAuthSession } from '@/features/auth/AuthContext';
 import { mockDoctor } from '@/features/doctor/mockData';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorProfileScreen() {
   const router = useRouter();
+  const { logout } = useAuthSession();
+
+  const handleLogout = () => {
+    logout();
+    router.replace(routes.authLogin);
+  };
 
   return (
     <DoctorScreen title="Profile">
@@ -47,15 +54,12 @@ export default function DoctorProfileScreen() {
       </View>
 
       <Card contentStyle={styles.devContent}>
-        <AppText variant="caption" color="textSecondary" style={styles.centerText}>
-          Development option
-        </AppText>
         <AppButton
           variant="outline"
-          accessibilityLabel="Switch role"
-          onPress={() => router.replace(routes.auth)}
+          accessibilityLabel="Logout"
+          onPress={handleLogout}
         >
-          Switch Role
+          Logout
         </AppButton>
       </Card>
     </DoctorScreen>

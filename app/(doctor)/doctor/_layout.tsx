@@ -1,10 +1,21 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 
 import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { doctorTabs } from '@/config/navigation';
+import { doctorTabs, routes } from '@/config/navigation';
+import { useAuthSession } from '@/features/auth/AuthContext';
 import { accessibility, colors, typography } from '@/theme';
 
 export default function DoctorTabsLayout() {
+  const { isAuthenticated, role } = useAuthSession();
+
+  if (!isAuthenticated) {
+    return <Redirect href={routes.authLogin} />;
+  }
+
+  if (role !== 'doctor') {
+    return <Redirect href={routes.patientHome} />;
+  }
+
   return (
     <Tabs
       screenOptions={{

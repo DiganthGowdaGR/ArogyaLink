@@ -18,6 +18,8 @@ export type TabRoute = {
 
 export const routes = {
   auth: '/(auth)/index',
+  authLogin: '/(auth)/login',
+  authRegister: '/(auth)/register',
   patientHome: '/patient/home',
   doctorHome: '/doctor/home',
 } as const;

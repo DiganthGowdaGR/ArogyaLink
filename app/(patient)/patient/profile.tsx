@@ -6,6 +6,7 @@ import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AppButton, AppText, Card, SectionHeader } from '@/components/ui';
 import { routes } from '@/config/navigation';
+import { useAuthSession } from '@/features/auth/AuthContext';
 import { mockPatient } from '@/features/patient/mockData';
 import { colors, radius, spacing } from '@/theme';
 
@@ -17,6 +18,12 @@ export default function PatientProfileScreen() {
 
 function ProfileContent() {
   const router = useRouter();
+  const { logout } = useAuthSession();
+
+  const handleLogout = () => {
+    logout();
+    router.replace(routes.authLogin);
+  };
 
   return (
     <PatientScreen title="My Profile">
@@ -94,15 +101,12 @@ function ProfileContent() {
       </View>
 
       <Card contentStyle={styles.devContent}>
-        <AppText variant="caption" color="textSecondary" style={styles.centerText}>
-          Development option
-        </AppText>
         <AppButton
           variant="outline"
-          accessibilityLabel="Switch role"
-          onPress={() => router.replace(routes.auth)}
+          accessibilityLabel="Logout"
+          onPress={handleLogout}
         >
-          Switch Role
+          Logout
         </AppButton>
       </Card>
     </PatientScreen>

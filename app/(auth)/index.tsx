@@ -1,12 +1,22 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppButton, AppText, Card, ScreenContainer } from '@/components/ui';
 import { routes } from '@/config/navigation';
+import { useAuthSession } from '@/features/auth/AuthContext';
 import { spacing } from '@/theme';
 
 export default function RoleEntryScreen() {
   const router = useRouter();
+  const { isAuthenticated, role } = useAuthSession();
+
+  if (isAuthenticated && role === 'patient') {
+    return <Redirect href={routes.patientHome} />;
+  }
+
+  if (isAuthenticated && role === 'doctor') {
+    return <Redirect href={routes.doctorHome} />;
+  }
 
   return (
     <ScreenContainer contentStyle={styles.screen}>
@@ -22,25 +32,21 @@ export default function RoleEntryScreen() {
               </AppText>
             </View>
 
-            <AppText variant="title" style={styles.centerText}>
-              Choose how you want to continue
-            </AppText>
-
             <View style={styles.actions}>
               <AppButton
                 fullWidth
-                accessibilityLabel="Continue as Patient"
-                onPress={() => router.push(routes.patientHome)}
+                accessibilityLabel="Login"
+                onPress={() => router.push(routes.authLogin)}
               >
-                Continue as Patient
+                Login
               </AppButton>
               <AppButton
                 fullWidth
                 variant="secondary"
-                accessibilityLabel="Continue as Doctor"
-                onPress={() => router.push(routes.doctorHome)}
+                accessibilityLabel="Create account"
+                onPress={() => router.push(routes.authRegister)}
               >
-                Continue as Doctor
+                Create Account
               </AppButton>
             </View>
           </View>
