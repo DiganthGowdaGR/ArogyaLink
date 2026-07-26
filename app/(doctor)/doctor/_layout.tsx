@@ -53,6 +53,7 @@ export default function DoctorTabsLayout() {
       ))}
       <Tabs.Screen name="patient/[id]/index" options={{ href: null }} />
       <Tabs.Screen name="patient/[id]/history" options={{ href: null }} />
+      <Tabs.Screen name="patient/[id]/care-plan" options={{ href: null }} />
     </Tabs>
   );
 }

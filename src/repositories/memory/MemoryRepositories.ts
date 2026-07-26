@@ -1,5 +1,6 @@
 import type {
   Appointment,
+  AdherenceEvent,
   AttentionItem,
   CarePlan,
   CarePlanItem,
@@ -11,6 +12,7 @@ import type {
 
 import type {
   AppointmentRepository,
+  AdherenceRepository,
   AttentionRepository,
   CarePlanRepository,
   CareTaskRepository,
@@ -113,6 +115,12 @@ export class MemoryCarePlanRepository implements CarePlanRepository {
     return this.carePlans.filter((carePlan) => carePlan.patientId === patientId);
   }
 
+  getActiveByPatient(patientId: string) {
+    return this.carePlans.find(
+      (carePlan) => carePlan.patientId === patientId && carePlan.status === 'active'
+    );
+  }
+
   create(carePlan: CarePlan) {
     this.carePlans.push(carePlan);
     return carePlan;
@@ -151,6 +159,19 @@ export class MemoryCareTaskRepository implements CareTaskRepository {
     return this.careTasks.filter((careTask) => careTask.patientId === patientId);
   }
 
+  create(careTask: CareTask) {
+    this.careTasks.push(careTask);
+    return careTask;
+  }
+
+  markCompleted(id: string, completedAt?: string) {
+    return this.updateStatus(id, 'completed', completedAt);
+  }
+
+  markMissed(id: string) {
+    return this.updateStatus(id, 'missed');
+  }
+
   updateStatus(id: string, status: CareTaskStatus, completedAt?: string) {
     const careTask = this.careTasks.find((task) => task.id === id);
 
@@ -170,6 +191,27 @@ export class MemoryCareTaskRepository implements CareTaskRepository {
   }
 }
 
+export class MemoryAdherenceRepository implements AdherenceRepository {
+  constructor(private readonly adherenceEvents: AdherenceEvent[]) {}
+
+  list() {
+    return [...this.adherenceEvents];
+  }
+
+  listByPatient(patientId: string) {
+    return this.adherenceEvents.filter((event) => event.patientId === patientId);
+  }
+
+  listByTask(careTaskId: string) {
+    return this.adherenceEvents.filter((event) => event.careTaskId === careTaskId);
+  }
+
+  create(event: AdherenceEvent) {
+    this.adherenceEvents.push(event);
+    return event;
+  }
+}
+
 export class MemoryAttentionRepository implements AttentionRepository {
   constructor(private readonly attentionItems: AttentionItem[]) {}
 
@@ -179,6 +221,18 @@ export class MemoryAttentionRepository implements AttentionRepository {
 
   listByDoctor(doctorId: string) {
     return this.attentionItems.filter((item) => item.doctorId === doctorId);
+  }
+
+  listUnresolvedByDoctor(doctorId: string) {
+    return this.listByDoctor(doctorId).filter((item) => !item.resolved);
+  }
+
+  listByPatient(patientId: string) {
+    return this.attentionItems.filter((item) => item.patientId === patientId);
+  }
+
+  listUnresolvedByPatient(patientId: string) {
+    return this.listByPatient(patientId).filter((item) => !item.resolved);
   }
 
   create(item: AttentionItem) {

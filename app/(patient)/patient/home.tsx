@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
+import { AdherenceReasonPanel } from '@/components/patient/AdherenceReasonPanel';
 import {
   ActionCard,
   AppButton,
@@ -13,11 +15,21 @@ import {
   StatusBadge,
 } from '@/components/ui';
 import { demoIdentities } from '@/config/demoIdentities';
-import { appointmentRepository, carePlanRepository, careTaskRepository, doctorRepository } from '@/repositories';
+import type { CareTask } from '@/domain';
+import { evaluateAttentionForPatient } from '@/services/attentionService';
+import {
+  adherenceRepository,
+  appointmentRepository,
+  carePlanRepository,
+  careTaskRepository,
+  doctorRepository,
+} from '@/repositories';
 import { colors, spacing } from '@/theme';
 
 export default function PatientHomeScreen() {
   const router = useRouter();
+  const [, refreshTasks] = useState(0);
+  const [reasonTaskId, setReasonTaskId] = useState<string | null>(null);
   const appointments = appointmentRepository.listByPatient(demoIdentities.patientId);
   const nextAppointment = appointments.find(
     (appointment) => appointment.status === 'requested' || appointment.status === 'confirmed'
@@ -36,6 +48,47 @@ export default function PatientHomeScreen() {
         .listByPatient(demoIdentities.patientId)
         .find((task) => task.carePlanItemId === medication.id)
     : undefined;
+  const careItems = carePlan
+    ? carePlanRepository.listItemsByCarePlan(carePlan.id)
+    : [];
+  const todayTasks = careTaskRepository
+    .listByPatient(demoIdentities.patientId)
+    .filter((task) => isToday(task.scheduledAt) && task.status === 'pending');
+
+  const handleCompleted = (task: CareTask) => {
+    const recordedAt = new Date();
+    const scheduledAt = new Date(task.scheduledAt);
+    const status =
+      recordedAt.getTime() - scheduledAt.getTime() > 60 * 60 * 1000 ? 'late' : 'onTime';
+
+    careTaskRepository.markCompleted(task.id, recordedAt.toISOString());
+    adherenceRepository.create({
+      id: `adherence-event-${recordedAt.toISOString()}`,
+      careTaskId: task.id,
+      patientId: task.patientId,
+      recordedAt: recordedAt.toISOString(),
+      status,
+    });
+    evaluateAttentionForPatient(task.patientId);
+    refreshTasks((value) => value + 1);
+  };
+
+  const handleMissed = (task: CareTask, reason: string) => {
+    const recordedAt = new Date().toISOString();
+
+    careTaskRepository.markMissed(task.id);
+    adherenceRepository.create({
+      id: `adherence-event-${recordedAt}`,
+      careTaskId: task.id,
+      patientId: task.patientId,
+      recordedAt,
+      status: 'missed',
+      reason,
+    });
+    evaluateAttentionForPatient(task.patientId);
+    setReasonTaskId(null);
+    refreshTasks((value) => value + 1);
+  };
 
   return (
     <PatientScreen
@@ -97,6 +150,60 @@ export default function PatientHomeScreen() {
             style={styles.actionCard}
           />
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Today's Care" subtitle="Tasks scheduled for today" />
+        {todayTasks.length === 0 ? (
+          <EmptyState title="No care tasks scheduled for today." />
+        ) : (
+          todayTasks.map((task) => {
+            const item = careItems.find((careItem) => careItem.id === task.carePlanItemId);
+
+            return (
+              <Card key={task.id} contentStyle={styles.careTaskContent}>
+                <View style={styles.careTaskHeader}>
+                  <View style={styles.careTaskCopy}>
+                    <AppText variant="title">
+                      {item?.title ?? 'Care task'}
+                      {item?.dosage ? ` ${item.dosage}` : ''}
+                    </AppText>
+                    <AppText variant="body" color="textSecondary">
+                      {formatTaskTime(task.scheduledAt)}
+                    </AppText>
+                    <AppText variant="caption" color="textSecondary">
+                      {item?.instructions ?? 'Follow your care plan.'}
+                    </AppText>
+                  </View>
+                  <StatusBadge status="warning">Pending</StatusBadge>
+                </View>
+                {reasonTaskId === task.id ? (
+                  <AdherenceReasonPanel
+                    onCancel={() => setReasonTaskId(null)}
+                    onSubmit={(reason) => handleMissed(task, reason)}
+                  />
+                ) : (
+                  <View style={styles.taskActions}>
+                    <AppButton
+                      variant="secondary"
+                      onPress={() => handleCompleted(task)}
+                      accessibilityLabel={task.type === 'medication' ? 'Taken' : 'Completed'}
+                    >
+                      {task.type === 'medication' ? 'Taken' : 'Completed'}
+                    </AppButton>
+                    <AppButton
+                      variant="outline"
+                      onPress={() => setReasonTaskId(task.id)}
+                      accessibilityLabel={task.type === 'medication' ? "Couldn't take" : 'Not done'}
+                    >
+                      {task.type === 'medication' ? "Couldn't Take" : 'Not Done'}
+                    </AppButton>
+                  </View>
+                )}
+              </Card>
+            );
+          })
+        )}
       </View>
 
       <Card contentStyle={styles.cardContent}>
@@ -171,10 +278,27 @@ const styles = StyleSheet.create({
   cardContent: {
     gap: spacing.lg,
   },
+  careTaskContent: {
+    gap: spacing.md,
+  },
+  careTaskCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  careTaskHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
   detailGroup: {
     gap: spacing.sm,
   },
   section: {
+    gap: spacing.md,
+  },
+  taskActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
   updateCopy: {
@@ -195,3 +319,11 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
 });
+
+function isToday(value: string) {
+  return new Date(value).toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10);
+}
+
+function formatTaskTime(value: string) {
+  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}

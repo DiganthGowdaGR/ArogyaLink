@@ -2,6 +2,7 @@ import { mockSeed } from '@/data/mockSeed';
 
 import {
   MemoryAppointmentRepository,
+  MemoryAdherenceRepository,
   MemoryAttentionRepository,
   MemoryCarePlanRepository,
   MemoryCareTaskRepository,
@@ -11,6 +12,7 @@ import {
 
 export type {
   AppointmentRepository,
+  AdherenceRepository,
   AttentionRepository,
   CarePlanRepository,
   CareTaskRepository,
@@ -26,4 +28,5 @@ export const carePlanRepository = new MemoryCarePlanRepository(
   mockSeed.carePlanItems
 );
 export const careTaskRepository = new MemoryCareTaskRepository(mockSeed.careTasks);
+export const adherenceRepository = new MemoryAdherenceRepository(mockSeed.adherenceEvents);
 export const attentionRepository = new MemoryAttentionRepository(mockSeed.attentionItems);

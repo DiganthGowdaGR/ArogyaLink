@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AttentionCard } from '@/components/doctor/AttentionCard';
@@ -14,14 +15,24 @@ import {
 } from '@/components/ui';
 import { demoIdentities } from '@/config/demoIdentities';
 import { appointmentRepository, attentionRepository, carePlanRepository, doctorRepository, patientRepository } from '@/repositories';
+import { evaluateAttentionForDoctor } from '@/services/attentionService';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorHomeScreen() {
   const router = useRouter();
+  const [, refreshAttention] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      evaluateAttentionForDoctor(demoIdentities.doctorId);
+      refreshAttention((value) => value + 1);
+    }, [])
+  );
   const doctor = doctorRepository.getById(demoIdentities.doctorId);
   const appointments = appointmentRepository.listByDoctor(demoIdentities.doctorId);
   const patients = patientRepository.list();
-  const attentionItems = attentionRepository.listByDoctor(demoIdentities.doctorId);
+  const attentionItems = attentionRepository
+    .listUnresolvedByDoctor(demoIdentities.doctorId)
+    .sort((first, second) => severityRank(first.severity) - severityRank(second.severity));
   const requests = appointments.filter((appointment) => appointment.status === 'requested');
   const currentAppointment =
     appointments.find(
@@ -131,8 +142,14 @@ export default function DoctorHomeScreen() {
                 patient={patient?.fullName ?? item.patientId}
                 issue={item.title}
                 detail={item.description}
-                status={item.resolved ? 'Resolved' : item.severity}
-                statusType={item.resolved || item.severity === 'info' ? 'info' : item.severity === 'high' ? 'danger' : 'warning'}
+                status={item.severity.toUpperCase()}
+                statusType={item.severity === 'high' ? 'danger' : item.severity === 'warning' ? 'warning' : 'info'}
+                onPress={() =>
+                  router.push({
+                    pathname: '/doctor/patient/[id]/index',
+                    params: { id: item.patientId },
+                  })
+                }
               />
             );
           })
@@ -236,3 +253,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
 });
+
+function severityRank(severity: 'info' | 'warning' | 'high') {
+  if (severity === 'high') return 0;
+  if (severity === 'warning') return 1;
+  return 2;
+}

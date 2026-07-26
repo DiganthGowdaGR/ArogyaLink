@@ -1,4 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { DoctorIcon } from '@/components/doctor/DoctorIcon';
@@ -13,15 +14,42 @@ import {
 } from '@/components/ui';
 import { demoIdentities } from '@/config/demoIdentities';
 import { mockSeed } from '@/data/mockSeed';
-import { appointmentRepository, carePlanRepository, careTaskRepository, patientRepository } from '@/repositories';
+import {
+  adherenceRepository,
+  appointmentRepository,
+  attentionRepository,
+  carePlanRepository,
+  careTaskRepository,
+  patientRepository,
+} from '@/repositories';
+import { evaluateAttentionForPatient } from '@/services/attentionService';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorPatientSnapshotScreen() {
   const router = useRouter();
+  const [, refreshAlerts] = useState(0);
   const { id } = useLocalSearchParams<{ id: string }>();
   const patientId = id ?? demoIdentities.patientId;
+  useFocusEffect(
+    useCallback(() => {
+      evaluateAttentionForPatient(patientId);
+      refreshAlerts((value) => value + 1);
+    }, [patientId])
+  );
   const patient = patientRepository.getById(patientId);
   const carePlans = patient ? carePlanRepository.getByPatient(patient.id) : [];
+  const activeCarePlan = patient
+    ? carePlanRepository.getActiveByPatient(patient.id)
+    : undefined;
+  const activeCarePlanItems = activeCarePlan
+    ? carePlanRepository.listItemsByCarePlan(activeCarePlan.id)
+    : [];
+  const carePlanSummary = {
+    medication: activeCarePlanItems.filter((item) => item.type === 'medication').length,
+    test: activeCarePlanItems.filter((item) => item.type === 'test').length,
+    referral: activeCarePlanItems.filter((item) => item.type === 'referral').length,
+    followUp: activeCarePlanItems.filter((item) => item.type === 'followUp').length,
+  };
   const carePlanItems = carePlans.flatMap((carePlan) =>
     carePlanRepository.listItemsByCarePlan(carePlan.id)
   );
@@ -30,9 +58,12 @@ export default function DoctorPatientSnapshotScreen() {
   const medicationTask = medication
     ? careTasks.find((task) => task.carePlanItemId === medication.id)
     : undefined;
-  const adherenceEvents = mockSeed.adherenceEvents.filter(
-    (event) => event.patientId === patientId
-  );
+  const medicationTaskIds = careTasks
+    .filter((task) => task.type === 'medication')
+    .map((task) => task.id);
+  const adherenceEvents = adherenceRepository
+    .listByPatient(patientId)
+    .filter((event) => medicationTaskIds.includes(event.careTaskId));
   const consultations = mockSeed.consultations.filter(
     (consultation) => consultation.patientId === patientId
   );
@@ -40,14 +71,15 @@ export default function DoctorPatientSnapshotScreen() {
   const lastAppointment = consultation
     ? appointmentRepository.getById(consultation.appointmentId)
     : undefined;
-  const completedAdherence = adherenceEvents.filter(
-    (event) => event.status === 'onTime' || event.status === 'late'
-  ).length;
-  const adherence = adherenceEvents.length
-    ? `${Math.round((completedAdherence / adherenceEvents.length) * 100)}%`
-    : 'No data';
+  const completed = adherenceEvents.filter((event) => event.status === 'onTime').length;
   const missed = adherenceEvents.filter((event) => event.status === 'missed').length;
   const late = adherenceEvents.filter((event) => event.status === 'late').length;
+  const recentMissed = [...adherenceEvents]
+    .filter((event) => event.status === 'missed')
+    .sort((first, second) => second.recordedAt.localeCompare(first.recordedAt))[0];
+  const careAlerts = attentionRepository
+    .listUnresolvedByPatient(patientId)
+    .sort((first, second) => severityRank(first.severity) - severityRank(second.severity));
 
   if (!patient) {
     return (
@@ -74,6 +106,61 @@ export default function DoctorPatientSnapshotScreen() {
       </Card>
 
       <Card contentStyle={styles.cardContent}>
+        <SectionHeader title="Care Alerts" subtitle="Rule-based follow-up alerts" />
+        {careAlerts.length === 0 ? (
+          <EmptyState title="No active care alerts." />
+        ) : (
+          careAlerts.map((alert) => (
+            <View key={alert.id} style={styles.alertBlock}>
+              <StatusBadge status={alert.severity === 'high' ? 'danger' : alert.severity === 'warning' ? 'warning' : 'info'}>
+                {alert.severity.toUpperCase()}
+              </StatusBadge>
+              <AppText variant="title">{alert.title}</AppText>
+              <AppText variant="body" color="textSecondary">{alert.description}</AppText>
+              <AppButton
+                variant="outline"
+                accessibilityLabel={`Mark ${alert.title} resolved`}
+                onPress={() => {
+                  attentionRepository.markResolved(alert.id);
+                  refreshAlerts((value) => value + 1);
+                }}
+              >
+                Mark Resolved
+              </AppButton>
+            </View>
+          ))
+        )}
+      </Card>
+
+      <Card contentStyle={styles.cardContent}>
+        <SectionHeader
+          title="Active Care Plan"
+          subtitle={
+            activeCarePlan
+              ? `${carePlanSummary.medication} medications, ${carePlanSummary.test} tests, ${carePlanSummary.followUp} follow-ups`
+              : 'No active care plan'
+          }
+        />
+        <AppText variant="body" color="textSecondary">
+          {activeCarePlan
+            ? `${carePlanSummary.referral} referrals included in the current plan.`
+            : 'Create a plan to coordinate this patient\'s next steps.'}
+        </AppText>
+        <AppButton
+          variant="secondary"
+          accessibilityLabel={activeCarePlan ? 'View or update care plan' : 'Create care plan'}
+          onPress={() =>
+            router.push({
+              pathname: '/doctor/patient/[id]/care-plan',
+              params: { id: patientId },
+            })
+          }
+        >
+          {activeCarePlan ? 'View / Update Care Plan' : 'Create Care Plan'}
+        </AppButton>
+      </Card>
+
+      <Card contentStyle={styles.cardContent}>
         <SectionHeader title="Current Medication" />
         <View style={styles.infoRow}>
           <View style={styles.iconArea}>
@@ -92,21 +179,25 @@ export default function DoctorPatientSnapshotScreen() {
       </Card>
 
       <Card contentStyle={styles.cardContent}>
-        <SectionHeader title="Adherence" />
+        <SectionHeader title="Medication Adherence" />
         <View style={styles.adherenceRow}>
           <View style={styles.adherenceMain}>
-            <AppText variant="display" color="primary">
-              {adherence}
-            </AppText>
-            <AppText variant="caption" color="textSecondary">
-              Overall adherence
-            </AppText>
+            <AppText variant="display" color="primary">{completed}</AppText>
+            <AppText variant="caption" color="textSecondary">Completed</AppText>
           </View>
           <View style={styles.badgeColumn}>
-            <StatusBadge status="warning">{`${missed} missed`}</StatusBadge>
+            <StatusBadge status="success">{`${completed} on time`}</StatusBadge>
             <StatusBadge status="info">{`${late} late`}</StatusBadge>
+            <StatusBadge status="warning">{`${missed} missed`}</StatusBadge>
           </View>
         </View>
+      </Card>
+
+      <Card contentStyle={styles.cardContent}>
+        <SectionHeader title="Recent Adherence Issue" />
+        <AppText variant="bodyStrong">
+          {recentMissed?.reason ?? 'No recent missed medication reason.'}
+        </AppText>
       </Card>
 
       <Card contentStyle={styles.cardContent}>
@@ -147,8 +238,17 @@ export default function DoctorPatientSnapshotScreen() {
         >
           View Full History
         </AppButton>
-        <AppButton variant="outline" accessibilityLabel="Update prescription">
-          Update Prescription
+        <AppButton
+          variant="outline"
+          accessibilityLabel="Create care plan"
+          onPress={() =>
+            router.push({
+              pathname: '/doctor/patient/[id]/care-plan',
+              params: { id: patientId },
+            })
+          }
+        >
+          Create Care Plan
         </AppButton>
       </View>
     </DoctorScreen>
@@ -164,6 +264,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  alertBlock: {
+    gap: spacing.sm,
   },
   badgeColumn: {
     gap: spacing.sm,
@@ -197,3 +300,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
 });
+
+function severityRank(severity: 'info' | 'warning' | 'high') {
+  if (severity === 'high') return 0;
+  if (severity === 'warning') return 1;
+  return 2;
+}

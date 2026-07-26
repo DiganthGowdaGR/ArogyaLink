@@ -5,6 +5,7 @@ import type {
   CarePlanItem,
   CareTask,
   CareTaskStatus,
+  AdherenceEvent,
   Doctor,
   Patient,
 } from '@/domain';
@@ -36,6 +37,7 @@ export type CarePlanRepository = {
   list: () => CarePlan[];
   getById: (id: string) => CarePlan | undefined;
   getByPatient: (patientId: string) => CarePlan[];
+  getActiveByPatient: (patientId: string) => CarePlan | undefined;
   create: (carePlan: CarePlan) => CarePlan;
   update: (id: string, changes: Partial<Omit<CarePlan, 'id'>>) => CarePlan | undefined;
   listItemsByCarePlan: (carePlanId: string) => CarePlanItem[];
@@ -46,12 +48,25 @@ export type CarePlanRepository = {
 export type CareTaskRepository = {
   list: () => CareTask[];
   listByPatient: (patientId: string) => CareTask[];
+  create: (careTask: CareTask) => CareTask;
+  markCompleted: (id: string, completedAt?: string) => CareTask | undefined;
+  markMissed: (id: string) => CareTask | undefined;
   updateStatus: (id: string, status: CareTaskStatus, completedAt?: string) => CareTask | undefined;
+};
+
+export type AdherenceRepository = {
+  list: () => AdherenceEvent[];
+  listByPatient: (patientId: string) => AdherenceEvent[];
+  listByTask: (careTaskId: string) => AdherenceEvent[];
+  create: (event: AdherenceEvent) => AdherenceEvent;
 };
 
 export type AttentionRepository = {
   list: () => AttentionItem[];
   listByDoctor: (doctorId: string) => AttentionItem[];
+  listUnresolvedByDoctor: (doctorId: string) => AttentionItem[];
+  listByPatient: (patientId: string) => AttentionItem[];
+  listUnresolvedByPatient: (patientId: string) => AttentionItem[];
   create: (item: AttentionItem) => AttentionItem;
   markResolved: (id: string) => AttentionItem | undefined;
 };

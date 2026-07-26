@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, Card, StatusBadge } from '@/components/ui';
+import { AppButton, AppText, Card, StatusBadge } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme';
 
 import { DoctorIcon } from './DoctorIcon';
@@ -11,6 +11,7 @@ type AttentionCardProps = {
   detail: string;
   status: string;
   statusType: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+  onPress?: () => void;
 };
 
 export function AttentionCard({
@@ -19,6 +20,7 @@ export function AttentionCard({
   detail,
   status,
   statusType,
+  onPress,
 }: AttentionCardProps) {
   return (
     <Card contentStyle={styles.content}>
@@ -32,6 +34,11 @@ export function AttentionCard({
           {detail}
         </AppText>
         <StatusBadge status={statusType}>{status}</StatusBadge>
+        {onPress ? (
+          <AppButton variant="secondary" onPress={onPress} accessibilityLabel={`Open ${patient} patient`}>
+            Open Patient
+          </AppButton>
+        ) : null}
       </View>
     </Card>
   );
