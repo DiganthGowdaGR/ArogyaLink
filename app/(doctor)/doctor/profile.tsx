@@ -4,14 +4,16 @@ import { StyleSheet, View } from 'react-native';
 import { DoctorIcon } from '@/components/doctor/DoctorIcon';
 import { DoctorScreen } from '@/components/doctor/DoctorScreen';
 import { AppButton, AppText, Card, SectionHeader } from '@/components/ui';
+import { demoIdentities } from '@/config/demoIdentities';
 import { routes } from '@/config/navigation';
+import { doctorRepository } from '@/repositories';
 import { useAuthSession } from '@/features/auth/AuthContext';
-import { mockDoctor } from '@/features/doctor/mockData';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorProfileScreen() {
   const router = useRouter();
   const { logout } = useAuthSession();
+  const doctor = doctorRepository.getById(demoIdentities.doctorId);
 
   const handleLogout = () => {
     logout();
@@ -30,22 +32,34 @@ export default function DoctorProfileScreen() {
         </View>
         <View style={styles.identityCopy}>
           <AppText variant="heading" style={styles.centerText}>
-            {mockDoctor.name}
+            {doctor?.fullName ?? 'Doctor'}
           </AppText>
           <AppText variant="bodyStrong" color="textSecondary" style={styles.centerText}>
-            {mockDoctor.specialty}
+            {doctor?.specialization ?? 'Healthcare provider'}
           </AppText>
           <AppText variant="body" color="textSecondary" style={styles.centerText}>
-            {mockDoctor.clinic}
+            {doctor?.clinicName ?? 'Clinic'}
           </AppText>
         </View>
       </Card>
 
       <Card contentStyle={styles.cardContent}>
         <SectionHeader title="Professional Information" />
-        <ProfileRow title="Specialization" value={mockDoctor.specialty} icon="medical_services" />
-        <ProfileRow title="Clinic / Hospital" value={mockDoctor.clinic} icon="business" />
-        <ProfileRow title="Availability" value={mockDoctor.availability} icon="schedule" />
+        <ProfileRow
+          title="Specialization"
+          value={doctor?.specialization ?? 'Not recorded'}
+          icon="medical_services"
+        />
+        <ProfileRow
+          title="Clinic / Hospital"
+          value={`${doctor?.clinicName ?? 'Not recorded'}, ${doctor?.city ?? ''}`}
+          icon="business"
+        />
+        <ProfileRow
+          title="Availability"
+          value={doctor?.available ? 'Available for appointments' : 'Currently unavailable'}
+          icon="schedule"
+        />
       </Card>
 
       <View style={styles.rowStack}>

@@ -5,9 +5,10 @@ import { InfoRow } from '@/components/patient/InfoRow';
 import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AppButton, AppText, Card, SectionHeader } from '@/components/ui';
+import { demoIdentities } from '@/config/demoIdentities';
 import { routes } from '@/config/navigation';
+import { patientRepository } from '@/repositories';
 import { useAuthSession } from '@/features/auth/AuthContext';
-import { mockPatient } from '@/features/patient/mockData';
 import { colors, radius, spacing } from '@/theme';
 
 export default function PatientProfileScreen() {
@@ -19,6 +20,7 @@ export default function PatientProfileScreen() {
 function ProfileContent() {
   const router = useRouter();
   const { logout } = useAuthSession();
+  const patient = patientRepository.getById(demoIdentities.patientId);
 
   const handleLogout = () => {
     logout();
@@ -37,10 +39,10 @@ function ProfileContent() {
         </View>
         <View style={styles.identityCopy}>
           <AppText variant="heading" style={styles.centerText}>
-            {mockPatient.name}
+            {patient?.fullName ?? 'Patient'}
           </AppText>
           <AppText variant="body" color="textSecondary" style={styles.centerText}>
-            Patient ID: {mockPatient.patientId}
+            Patient ID: {patient?.id ?? demoIdentities.patientId}
           </AppText>
         </View>
         <AppButton
@@ -56,17 +58,17 @@ function ProfileContent() {
         <SectionHeader title="Personal Information" />
         <InfoRow
           title="Medical Basics"
-          description={`Blood group: ${mockPatient.bloodGroup}`}
+          description={`Blood group: ${patient?.bloodGroup ?? 'Not recorded'}`}
           icon={{ android: 'bloodtype', web: 'bloodtype' }}
         />
         <InfoRow
           title="Allergies"
-          description={mockPatient.allergies}
+          description={patient?.allergies.join(', ') || 'No known allergies'}
           icon={{ android: 'allergy', web: 'allergy' }}
         />
         <InfoRow
           title="Known conditions"
-          description={mockPatient.knownConditions}
+          description={patient?.conditions.join(', ') || 'No known conditions'}
           icon={{ android: 'medical_information', web: 'medical_information' }}
         />
       </Card>
@@ -74,7 +76,7 @@ function ProfileContent() {
       <View style={styles.rowStack}>
         <InfoRow
           title="Emergency Contact"
-          description={mockPatient.emergencyContact}
+          description="Emergency contact not yet recorded"
           icon={{ android: 'contact_emergency', web: 'contact_emergency' }}
         />
         <InfoRow

@@ -8,27 +8,62 @@ import {
   AppButton,
   AppText,
   Card,
+  EmptyState,
   SectionHeader,
   StatusBadge,
 } from '@/components/ui';
-import {
-  mockAppointmentRequests,
-  mockAttentionItems,
-  mockDoctorSummary,
-  mockQueue,
-} from '@/features/doctor/mockData';
+import { demoIdentities } from '@/config/demoIdentities';
+import { appointmentRepository, attentionRepository, carePlanRepository, doctorRepository, patientRepository } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorHomeScreen() {
   const router = useRouter();
+  const doctor = doctorRepository.getById(demoIdentities.doctorId);
+  const appointments = appointmentRepository.listByDoctor(demoIdentities.doctorId);
+  const patients = patientRepository.list();
+  const attentionItems = attentionRepository.listByDoctor(demoIdentities.doctorId);
+  const requests = appointments.filter((appointment) => appointment.status === 'requested');
+  const currentAppointment =
+    appointments.find(
+      (appointment) => appointment.status === 'confirmed' || appointment.status === 'requested'
+    ) ?? appointments[0];
+  const currentPatient = currentAppointment
+    ? patientRepository.getById(currentAppointment.patientId)
+    : undefined;
+  const followUpsDue = patients.reduce((count, patient) => {
+    const plans = carePlanRepository.getByPatient(patient.id);
+    return (
+      count +
+      plans.reduce(
+        (planCount, plan) =>
+          planCount +
+          carePlanRepository
+            .listItemsByCarePlan(plan.id)
+            .filter((item) => item.type === 'followUp' && item.status === 'pending').length,
+        0
+      )
+    );
+  }, 0);
+  const summary = [
+    { label: "Today's Appointments", value: String(appointments.length) },
+    {
+      label: 'Waiting Patients',
+      value: String(appointments.filter((appointment) => appointment.status === 'requested').length),
+    },
+    {
+      label: 'Needs Attention',
+      value: String(attentionItems.filter((item) => !item.resolved).length),
+    },
+    { label: 'Follow-ups Due', value: String(followUpsDue) },
+  ];
 
   return (
     <DoctorScreen
-      title="Good morning, Dr. Kumar"
+      title={`Good morning, ${doctor?.fullName ?? 'Doctor'}`}
       subtitle="Here's what needs your attention today."
     >
       <View style={styles.summaryGrid}>
-        {mockDoctorSummary.map((item) => (
+        {summary.map((item) => (
           <Card key={item.label} style={styles.summaryCard}>
             <AppText variant="display" color="primary">
               {item.value}
@@ -42,73 +77,102 @@ export default function DoctorHomeScreen() {
 
       <Card contentStyle={styles.cardContent}>
         <SectionHeader title="Current Queue" />
-        <View style={styles.currentToken}>
-          <View style={styles.tokenBlock}>
-            <AppText variant="caption" color="surface">
-              Current Token
-            </AppText>
-            <AppText variant="display" color="surface">
-              {mockQueue.current.token}
-            </AppText>
-          </View>
-          <View style={styles.currentCopy}>
-            <AppText variant="title">{mockQueue.current.patient}</AppText>
-            <AppText variant="body" color="textSecondary">
-              {mockQueue.current.reason}
-            </AppText>
-          </View>
-        </View>
-        <View style={styles.buttonRow}>
-          <AppButton
-            accessibilityLabel="Open current patient"
-            onPress={() =>
-              router.push({
-                pathname: '/doctor/patient/[id]/index',
-                params: { id: mockQueue.current.id },
-              })
-            }
-          >
-            Open Patient
-          </AppButton>
-          <AppButton variant="secondary" accessibilityLabel="Next patient">
-            Next Patient
-          </AppButton>
-        </View>
+        {currentAppointment && currentPatient ? (
+          <>
+            <View style={styles.currentToken}>
+              <View style={styles.tokenBlock}>
+                <AppText variant="caption" color="surface">
+                  Current Token
+                </AppText>
+                <AppText variant="display" color="surface">
+                  A-{appointments.indexOf(currentAppointment) + 5}
+                </AppText>
+              </View>
+              <View style={styles.currentCopy}>
+                <AppText variant="title">{currentPatient.fullName}</AppText>
+                <AppText variant="body" color="textSecondary">
+                  {currentAppointment.reason}
+                </AppText>
+              </View>
+            </View>
+            <View style={styles.buttonRow}>
+              <AppButton
+                accessibilityLabel="Open current patient"
+                onPress={() =>
+                  router.push({
+                    pathname: '/doctor/patient/[id]/index',
+                    params: { id: currentPatient.id },
+                  })
+                }
+              >
+                Open Patient
+              </AppButton>
+              <AppButton variant="secondary" accessibilityLabel="Next patient">
+                Next Patient
+              </AppButton>
+            </View>
+          </>
+        ) : (
+          <EmptyState title="No patients in queue" description="Upcoming appointments will appear here." />
+        )}
       </Card>
 
       <View style={styles.section}>
         <SectionHeader title="Care Attention" />
-        {mockAttentionItems.map((item) => (
-          <AttentionCard key={`${item.patient}-${item.issue}`} {...item} />
-        ))}
+        {attentionItems.length === 0 ? (
+          <EmptyState title="No attention items" description="Your care queue is clear." />
+        ) : (
+          attentionItems.map((item) => {
+            const patient = patientRepository.getById(item.patientId);
+
+            return (
+              <AttentionCard
+                key={item.id}
+                patient={patient?.fullName ?? item.patientId}
+                issue={item.title}
+                detail={item.description}
+                status={item.resolved ? 'Resolved' : item.severity}
+                statusType={item.resolved || item.severity === 'info' ? 'info' : item.severity === 'high' ? 'danger' : 'warning'}
+              />
+            );
+          })
+        )}
       </View>
 
       <View style={styles.section}>
         <SectionHeader title="Appointment Requests" />
-        {mockAppointmentRequests.slice(0, 2).map((request) => (
-          <Card key={`${request.patient}-${request.time}`} contentStyle={styles.requestContent}>
+        {requests.length === 0 ? (
+          <EmptyState title="No appointment requests" description="New requests will appear here." />
+        ) : (
+          requests.slice(0, 2).map((request) => {
+            const patient = patientRepository.getById(request.patientId);
+
+            return (
+          <Card key={request.id} contentStyle={styles.requestContent}>
             <View style={styles.requestTop}>
               <View style={styles.requestIcon}>
                 <DoctorIcon name={{ android: 'event_available', web: 'event_available' }} />
               </View>
               <View style={styles.requestCopy}>
-                <AppText variant="title">{request.patient}</AppText>
+                <AppText variant="title">{patient?.fullName ?? request.patientId}</AppText>
                 <AppText variant="body" color="textSecondary">
                   {request.reason}
                 </AppText>
-                <StatusBadge status="info">{request.time}</StatusBadge>
+                <StatusBadge status="info">{`${request.date} - ${request.time}`}</StatusBadge>
               </View>
             </View>
             <View style={styles.buttonRow}>
-              <AppButton variant="secondary" accessibilityLabel={`Accept ${request.patient}`}>
+              <AppButton variant="secondary" accessibilityLabel={`Accept ${patient?.fullName ?? request.patientId}`}>
                 Accept
               </AppButton>
-              <AppButton variant="outline" accessibilityLabel={`Decline ${request.patient}`}>
+              <AppButton variant="outline" accessibilityLabel={`Decline ${patient?.fullName ?? request.patientId}`}>
                 Decline
               </AppButton>
             </View>
           </Card>
-        ))}
+            );
+          })
+        )}
       </View>
     </DoctorScreen>
   );

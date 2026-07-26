@@ -2,11 +2,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
-import { AppButton, AppText, Card, StatusBadge } from '@/components/ui';
-import { mockAppointments } from '@/features/patient/mockData';
+import { AppButton, AppText, Card, EmptyState, StatusBadge } from '@/components/ui';
+import { demoIdentities } from '@/config/demoIdentities';
+import { appointmentRepository, doctorRepository } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
 
 export default function PatientAppointmentsScreen() {
+  const appointments = appointmentRepository.listByPatient(demoIdentities.patientId);
+
   return (
     <PatientScreen title="Appointments" subtitle="Manage your doctor visits">
       <View style={styles.segmented}>
@@ -29,30 +32,38 @@ export default function PatientAppointmentsScreen() {
         Book Appointment
       </AppButton>
 
-      {mockAppointments.map((appointment) => (
-        <Card key={`${appointment.doctor}-${appointment.time}`} contentStyle={styles.cardContent}>
-          <View style={styles.appointmentTop}>
-            <View style={styles.iconArea}>
-              <PatientIcon name={{ android: 'calendar_month', web: 'calendar_month' }} />
-            </View>
-            <View style={styles.appointmentCopy}>
-              <AppText variant="title">{appointment.doctor}</AppText>
-              <AppText variant="body" color="textSecondary">
-                {appointment.specialty}
-              </AppText>
-            </View>
-          </View>
-          <View style={styles.detailGroup}>
-            <AppText variant="bodyStrong">{appointment.location}</AppText>
-            <AppText variant="body" color="textSecondary">
-              {appointment.time}
-            </AppText>
-          </View>
-          <StatusBadge status={appointment.statusType}>
-            {appointment.status}
-          </StatusBadge>
-        </Card>
-      ))}
+      {appointments.length === 0 ? (
+        <EmptyState title="No appointments yet" description="Your doctor visits will appear here." />
+      ) : (
+        appointments.map((appointment) => {
+          const doctor = doctorRepository.getById(appointment.doctorId);
+
+          return (
+            <Card key={appointment.id} contentStyle={styles.cardContent}>
+              <View style={styles.appointmentTop}>
+                <View style={styles.iconArea}>
+                  <PatientIcon name={{ android: 'calendar_month', web: 'calendar_month' }} />
+                </View>
+                <View style={styles.appointmentCopy}>
+                  <AppText variant="title">{doctor?.fullName ?? 'Doctor'}</AppText>
+                  <AppText variant="body" color="textSecondary">
+                    {doctor?.specialization ?? 'Healthcare visit'}
+                  </AppText>
+                </View>
+              </View>
+              <View style={styles.detailGroup}>
+                <AppText variant="bodyStrong">{doctor?.clinicName ?? 'Clinic'}</AppText>
+                <AppText variant="body" color="textSecondary">
+                  {appointment.date} - {appointment.time}
+                </AppText>
+              </View>
+              <StatusBadge status={appointmentStatus(appointment.status)}>
+                {appointment.status}
+              </StatusBadge>
+            </Card>
+          );
+        })
+      )}
     </PatientScreen>
   );
 }
@@ -102,3 +113,9 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
 });
+
+function appointmentStatus(status: 'requested' | 'confirmed' | 'completed' | 'cancelled') {
+  if (status === 'cancelled') return 'danger' as const;
+  if (status === 'requested') return 'warning' as const;
+  return status === 'completed' ? 'neutral' as const : 'success' as const;
+}

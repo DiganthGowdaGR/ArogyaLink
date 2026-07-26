@@ -3,11 +3,13 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { DoctorIcon } from '@/components/doctor/DoctorIcon';
 import { DoctorScreen } from '@/components/doctor/DoctorScreen';
 import { PatientCard } from '@/components/doctor/PatientCard';
-import { AppButton, AppText, Card } from '@/components/ui';
-import { mockDoctorPatients } from '@/features/doctor/mockData';
+import { AppButton, AppText, Card, EmptyState } from '@/components/ui';
+import { appointmentRepository, attentionRepository, patientRepository } from '@/repositories';
 import { colors, radius, spacing, typography } from '@/theme';
 
 export default function DoctorPatientsScreen() {
+  const patients = patientRepository.list();
+
   return (
     <DoctorScreen title="Patients" subtitle="Quick access to your patient records">
       <Card contentStyle={styles.searchContent}>
@@ -38,9 +40,30 @@ export default function DoctorPatientsScreen() {
       </Card>
 
       <View style={styles.patientList}>
-        {mockDoctorPatients.map((patient) => (
-          <PatientCard key={patient.id} {...patient} />
-        ))}
+        {patients.length === 0 ? (
+          <EmptyState title="No patients yet" description="Your patient records will appear here." />
+        ) : (
+          patients.map((patient) => {
+            const appointments = appointmentRepository.listByPatient(patient.id);
+            const attentionItems = attentionRepository
+              .list()
+              .filter((item) => item.patientId === patient.id && !item.resolved);
+            const lastVisit = appointments[0]?.date ?? 'Not recorded';
+
+            return (
+              <PatientCard
+                key={patient.id}
+                id={patient.id}
+                name={patient.fullName}
+                age={`${patient.age} years`}
+                condition={patient.conditions[0] ?? 'No conditions recorded'}
+                lastVisit={lastVisit}
+                status={attentionItems.length > 0 ? 'Needs Review' : 'Routine'}
+                statusType={attentionItems.length > 0 ? 'warning' : 'success'}
+              />
+            );
+          })
+        )}
       </View>
     </DoctorScreen>
   );

@@ -7,26 +7,65 @@ import {
   AppButton,
   AppText,
   Card,
+  EmptyState,
   SectionHeader,
   StatusBadge,
 } from '@/components/ui';
-import { mockPatientSnapshot } from '@/features/doctor/mockData';
+import { demoIdentities } from '@/config/demoIdentities';
+import { mockSeed } from '@/data/mockSeed';
+import { appointmentRepository, carePlanRepository, careTaskRepository, patientRepository } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorPatientSnapshotScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const patientId = id ?? mockPatientSnapshot.id;
+  const patientId = id ?? demoIdentities.patientId;
+  const patient = patientRepository.getById(patientId);
+  const carePlans = patient ? carePlanRepository.getByPatient(patient.id) : [];
+  const carePlanItems = carePlans.flatMap((carePlan) =>
+    carePlanRepository.listItemsByCarePlan(carePlan.id)
+  );
+  const medication = carePlanItems.find((item) => item.type === 'medication');
+  const careTasks = patient ? careTaskRepository.listByPatient(patient.id) : [];
+  const medicationTask = medication
+    ? careTasks.find((task) => task.carePlanItemId === medication.id)
+    : undefined;
+  const adherenceEvents = mockSeed.adherenceEvents.filter(
+    (event) => event.patientId === patientId
+  );
+  const consultations = mockSeed.consultations.filter(
+    (consultation) => consultation.patientId === patientId
+  );
+  const consultation = consultations[consultations.length - 1];
+  const lastAppointment = consultation
+    ? appointmentRepository.getById(consultation.appointmentId)
+    : undefined;
+  const completedAdherence = adherenceEvents.filter(
+    (event) => event.status === 'onTime' || event.status === 'late'
+  ).length;
+  const adherence = adherenceEvents.length
+    ? `${Math.round((completedAdherence / adherenceEvents.length) * 100)}%`
+    : 'No data';
+  const missed = adherenceEvents.filter((event) => event.status === 'missed').length;
+  const late = adherenceEvents.filter((event) => event.status === 'late').length;
+
+  if (!patient) {
+    return (
+      <DoctorScreen title="Patient Snapshot">
+        <EmptyState title="Patient not found" description="This patient record is unavailable." />
+      </DoctorScreen>
+    );
+  }
 
   return (
     <DoctorScreen
-      title={mockPatientSnapshot.name}
-      subtitle={`${mockPatientSnapshot.demographics} - Patient ID: ${patientId}`}
+      title={patient.fullName}
+      subtitle={`${patient.age} / ${patient.gender} - Patient ID: ${patient.id}`}
     >
       <Card contentStyle={styles.cardContent}>
         <SectionHeader title="Important" />
         <View style={styles.badgeRow}>
-          {mockPatientSnapshot.important.map((item) => (
+          {[...patient.conditions, ...patient.allergies].map((item) => (
             <StatusBadge key={item} status="warning">
               {item}
             </StatusBadge>
@@ -41,9 +80,12 @@ export default function DoctorPatientSnapshotScreen() {
             <DoctorIcon name={{ android: 'medication', web: 'medication' }} />
           </View>
           <View style={styles.infoCopy}>
-            <AppText variant="title">{mockPatientSnapshot.medication}</AppText>
+            <AppText variant="title">
+              {medication?.title ?? 'No medication recorded'}
+            </AppText>
             <AppText variant="body" color="textSecondary">
-              {mockPatientSnapshot.medicationTiming}
+              {medication?.scheduledTimes?.join(' / ') ?? 'No schedule recorded'}
+              {medicationTask ? ` - ${medicationTask.status}` : ''}
             </AppText>
           </View>
         </View>
@@ -54,38 +96,40 @@ export default function DoctorPatientSnapshotScreen() {
         <View style={styles.adherenceRow}>
           <View style={styles.adherenceMain}>
             <AppText variant="display" color="primary">
-              {mockPatientSnapshot.adherence}
+              {adherence}
             </AppText>
             <AppText variant="caption" color="textSecondary">
               Overall adherence
             </AppText>
           </View>
           <View style={styles.badgeColumn}>
-            <StatusBadge status="warning">{mockPatientSnapshot.missed}</StatusBadge>
-            <StatusBadge status="info">{mockPatientSnapshot.late}</StatusBadge>
+            <StatusBadge status="warning">{`${missed} missed`}</StatusBadge>
+            <StatusBadge status="info">{`${late} late`}</StatusBadge>
           </View>
         </View>
       </Card>
 
       <Card contentStyle={styles.cardContent}>
         <SectionHeader title="Recent Complaint" />
-        <AppText variant="bodyStrong">{mockPatientSnapshot.complaint}</AppText>
+        <AppText variant="bodyStrong">
+          {consultation?.notes ?? 'No recent complaint recorded.'}
+        </AppText>
       </Card>
 
       <Card contentStyle={styles.cardContent}>
         <SectionHeader title="Last Consultation" />
         <AppText variant="bodyStrong">
-          {mockPatientSnapshot.lastConsultation.date}
+          {consultation?.date ?? 'No consultation recorded'}
         </AppText>
         <AppText variant="body" color="textSecondary">
-          {mockPatientSnapshot.lastConsultation.reason}
+          {lastAppointment?.reason ?? consultation?.summary ?? 'No consultation details recorded.'}
         </AppText>
       </Card>
 
       <Card contentStyle={styles.cardContent}>
-        <SectionHeader title="AI Quick Summary" />
+        <SectionHeader title="Consultation Summary" />
         <AppText variant="body" color="textSecondary">
-          {mockPatientSnapshot.aiSummary}
+          {consultation?.summary ?? 'No consultation summary recorded.'}
         </AppText>
       </Card>
 

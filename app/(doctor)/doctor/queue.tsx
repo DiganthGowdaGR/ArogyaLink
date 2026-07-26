@@ -7,17 +7,26 @@ import {
   AppButton,
   AppText,
   Card,
+  EmptyState,
   SectionHeader,
   StatusBadge,
 } from '@/components/ui';
-import {
-  mockAppointmentRequests,
-  mockDoctor,
-  mockQueue,
-} from '@/features/doctor/mockData';
+import { demoIdentities } from '@/config/demoIdentities';
+import { appointmentRepository, doctorRepository, patientRepository } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorQueueScreen() {
+  const doctor = doctorRepository.getById(demoIdentities.doctorId);
+  const appointments = appointmentRepository.listByDoctor(demoIdentities.doctorId);
+  const currentAppointment =
+    appointments.find(
+      (appointment) => appointment.status === 'confirmed' || appointment.status === 'requested'
+    ) ?? appointments[0];
+  const waitingAppointments = appointments.filter(
+    (appointment) => appointment.id !== currentAppointment?.id
+  );
+  const requests = appointments.filter((appointment) => appointment.status === 'requested');
+
   return (
     <DoctorScreen title="Today's Queue">
       <Card contentStyle={styles.availabilityContent}>
@@ -31,22 +40,34 @@ export default function DoctorQueueScreen() {
             />
           </View>
           <View style={styles.availabilityCopy}>
-            <StatusBadge status="success">Available</StatusBadge>
-            <AppText variant="bodyStrong">{mockDoctor.availability}</AppText>
+            <StatusBadge status={doctor?.available ? 'success' : 'neutral'}>
+              {doctor?.available ? 'Available' : 'Unavailable'}
+            </StatusBadge>
+            <AppText variant="bodyStrong">
+              {doctor?.available ? 'Available for appointments' : 'Currently unavailable'}
+            </AppText>
           </View>
         </View>
       </Card>
 
       <Card contentStyle={styles.queueContent}>
         <SectionHeader title="Queue" />
-        <QueueItem
-          current
-          token={mockQueue.current.token}
-          patient={mockQueue.current.patient}
-        />
+        {currentAppointment ? (
+          <QueueItem
+            current
+            token={`A-${appointments.indexOf(currentAppointment) + 5}`}
+            patient={patientRepository.getById(currentAppointment.patientId)?.fullName ?? currentAppointment.patientId}
+          />
+        ) : (
+          <EmptyState title="Queue is empty" description="Confirmed appointments will appear here." />
+        )}
         <View style={styles.waitingList}>
-          {mockQueue.waiting.map((item) => (
-            <QueueItem key={item.token} token={item.token} patient={item.patient} />
+          {waitingAppointments.map((appointment, index) => (
+            <QueueItem
+              key={appointment.id}
+              token={`A-${index + 6}`}
+              patient={patientRepository.getById(appointment.patientId)?.fullName ?? appointment.patientId}
+            />
           ))}
         </View>
         <AppButton accessibilityLabel="Next patient">Next Patient</AppButton>
@@ -54,30 +75,38 @@ export default function DoctorQueueScreen() {
 
       <View style={styles.section}>
         <SectionHeader title="Appointment Requests" />
-        {mockAppointmentRequests.map((request) => (
-          <Card key={`${request.patient}-${request.time}`} contentStyle={styles.requestContent}>
+        {requests.length === 0 ? (
+          <EmptyState title="No appointment requests" description="New requests will appear here." />
+        ) : (
+          requests.map((request) => {
+            const patient = patientRepository.getById(request.patientId);
+
+            return (
+          <Card key={request.id} contentStyle={styles.requestContent}>
             <View style={styles.requestTop}>
               <View style={styles.requestIcon}>
                 <DoctorIcon name={{ android: 'pending_actions', web: 'pending_actions' }} />
               </View>
               <View style={styles.requestCopy}>
-                <AppText variant="title">{request.patient}</AppText>
-                <AppText variant="bodyStrong">{request.time}</AppText>
+                <AppText variant="title">{patient?.fullName ?? request.patientId}</AppText>
+                <AppText variant="bodyStrong">{request.date} - {request.time}</AppText>
                 <AppText variant="body" color="textSecondary">
                   {request.reason}
                 </AppText>
               </View>
             </View>
             <View style={styles.buttonRow}>
-              <AppButton variant="secondary" accessibilityLabel={`Accept ${request.patient}`}>
+              <AppButton variant="secondary" accessibilityLabel={`Accept ${patient?.fullName ?? request.patientId}`}>
                 Accept
               </AppButton>
-              <AppButton variant="outline" accessibilityLabel={`Decline ${request.patient}`}>
+              <AppButton variant="outline" accessibilityLabel={`Decline ${patient?.fullName ?? request.patientId}`}>
                 Decline
               </AppButton>
             </View>
           </Card>
-        ))}
+            );
+          })
+        )}
       </View>
     </DoctorScreen>
   );

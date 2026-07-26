@@ -8,15 +8,34 @@ import {
   AppButton,
   AppText,
   Card,
+  EmptyState,
   SectionHeader,
   StatusBadge,
 } from '@/components/ui';
-import { mockAppointments, mockMedication } from '@/features/patient/mockData';
+import { demoIdentities } from '@/config/demoIdentities';
+import { appointmentRepository, carePlanRepository, careTaskRepository, doctorRepository } from '@/repositories';
 import { colors, spacing } from '@/theme';
 
 export default function PatientHomeScreen() {
   const router = useRouter();
-  const nextAppointment = mockAppointments[0];
+  const appointments = appointmentRepository.listByPatient(demoIdentities.patientId);
+  const nextAppointment = appointments.find(
+    (appointment) => appointment.status === 'requested' || appointment.status === 'confirmed'
+  );
+  const nextDoctor = nextAppointment
+    ? doctorRepository.getById(nextAppointment.doctorId)
+    : undefined;
+  const carePlan = carePlanRepository.getByPatient(demoIdentities.patientId)[0];
+  const medication = carePlan
+    ? carePlanRepository
+        .listItemsByCarePlan(carePlan.id)
+        .find((item) => item.type === 'medication')
+    : undefined;
+  const medicationTask = medication
+    ? careTaskRepository
+        .listByPatient(demoIdentities.patientId)
+        .find((task) => task.carePlanItemId === medication.id)
+    : undefined;
 
   return (
     <PatientScreen
@@ -25,20 +44,28 @@ export default function PatientHomeScreen() {
       subtitle="Let's take care of your health today."
     >
       <Card contentStyle={styles.cardContent}>
-        <SectionHeader
-          title="Next Appointment"
-          subtitle={`${nextAppointment.doctor} - ${nextAppointment.specialty}`}
-        />
-        <View style={styles.detailGroup}>
-          <AppText variant="bodyStrong">{nextAppointment.location}</AppText>
-          <AppText variant="body" color="textSecondary">
-            {nextAppointment.time}
-          </AppText>
-          <StatusBadge status="success">{nextAppointment.status}</StatusBadge>
-        </View>
-        <AppButton accessibilityLabel="View next appointment">
-          View Appointment
-        </AppButton>
+        {nextAppointment && nextDoctor ? (
+          <>
+            <SectionHeader
+              title="Next Appointment"
+              subtitle={`${nextDoctor.fullName} - ${nextDoctor.specialization}`}
+            />
+            <View style={styles.detailGroup}>
+              <AppText variant="bodyStrong">{nextDoctor.clinicName}</AppText>
+              <AppText variant="body" color="textSecondary">
+                {nextAppointment.date} - {nextAppointment.time}
+              </AppText>
+              <StatusBadge status={appointmentStatus(nextAppointment.status)}>
+                {nextAppointment.status}
+              </StatusBadge>
+            </View>
+            <AppButton accessibilityLabel="View next appointment">
+              View Appointment
+            </AppButton>
+          </>
+        ) : (
+          <EmptyState title="No upcoming appointments" description="Your next visit will appear here." />
+        )}
       </Card>
 
       <View style={styles.section}>
@@ -73,20 +100,30 @@ export default function PatientHomeScreen() {
       </View>
 
       <Card contentStyle={styles.cardContent}>
-        <SectionHeader title="Today's Medicine" />
-        <View style={styles.detailGroup}>
-          <AppText variant="bodyStrong">{mockMedication.name}</AppText>
-          <AppText variant="body" color="textSecondary">
-            {mockMedication.morningTime}
-          </AppText>
-          <AppText variant="caption" color="textSecondary">
-            {mockMedication.instruction}
-          </AppText>
-          <StatusBadge status="warning">{mockMedication.status}</StatusBadge>
-        </View>
-        <AppButton variant="secondary" accessibilityLabel="View medication">
-          View Medication
-        </AppButton>
+        {medication ? (
+          <>
+            <SectionHeader title="Today's Medicine" />
+            <View style={styles.detailGroup}>
+              <AppText variant="bodyStrong">
+                {medication.title} {medication.dosage ?? ''}
+              </AppText>
+              <AppText variant="body" color="textSecondary">
+                {medication.scheduledTimes?.[0] ?? medication.dueAt ?? 'As prescribed'}
+              </AppText>
+              <AppText variant="caption" color="textSecondary">
+                {medication.instructions ?? 'Follow your care plan instructions.'}
+              </AppText>
+              <StatusBadge status={taskStatus(medicationTask?.status ?? medication.status)}>
+                {medicationTask?.status ?? medication.status}
+              </StatusBadge>
+            </View>
+            <AppButton variant="secondary" accessibilityLabel="View medication">
+              View Medication
+            </AppButton>
+          </>
+        ) : (
+          <EmptyState title="No current medication" description="Your active care plan has no medication yet." />
+        )}
       </Card>
 
       <Card contentStyle={styles.cardContent}>
@@ -97,7 +134,7 @@ export default function PatientHomeScreen() {
           </View>
           <View style={styles.updateCopy}>
             <AppText variant="bodyStrong">
-              New prescription added by Dr. Kumar
+              New care plan added by {nextDoctor?.fullName ?? 'your doctor'}
             </AppText>
             <AppText variant="caption" color="textSecondary">
               Today
@@ -107,6 +144,18 @@ export default function PatientHomeScreen() {
       </Card>
     </PatientScreen>
   );
+}
+
+function appointmentStatus(status: 'requested' | 'confirmed' | 'completed' | 'cancelled') {
+  if (status === 'cancelled') return 'danger' as const;
+  if (status === 'requested') return 'warning' as const;
+  return status === 'completed' ? 'neutral' as const : 'success' as const;
+}
+
+function taskStatus(status: 'pending' | 'completed' | 'missed' | 'cancelled') {
+  if (status === 'missed' || status === 'cancelled') return 'danger' as const;
+  if (status === 'completed') return 'success' as const;
+  return 'warning' as const;
 }
 
 const styles = StyleSheet.create({

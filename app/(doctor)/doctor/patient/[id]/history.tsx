@@ -3,44 +3,61 @@ import { StyleSheet, View } from 'react-native';
 
 import { DoctorIcon } from '@/components/doctor/DoctorIcon';
 import { DoctorScreen } from '@/components/doctor/DoctorScreen';
-import { AppText, Card, StatusBadge } from '@/components/ui';
-import {
-  mockPatientHistory,
-  mockPatientSnapshot,
-} from '@/features/doctor/mockData';
+import { AppText, Card, EmptyState, StatusBadge } from '@/components/ui';
+import { demoIdentities } from '@/config/demoIdentities';
+import { mockSeed } from '@/data/mockSeed';
+import { appointmentRepository, carePlanRepository, doctorRepository, patientRepository } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorPatientHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const patientId = id ?? demoIdentities.patientId;
+  const patient = patientRepository.getById(patientId);
+  const consultations = mockSeed.consultations.filter(
+    (consultation) => consultation.patientId === patientId
+  );
 
   return (
     <DoctorScreen
       title="Patient History"
-      subtitle={`${mockPatientSnapshot.name} - ${id ?? mockPatientSnapshot.id}`}
+      subtitle={`${patient?.fullName ?? 'Patient'} - ${patientId}`}
     >
-      {mockPatientHistory.map((visit) => (
-        <Card key={`${visit.date}-${visit.reason}`} contentStyle={styles.cardContent}>
+      {consultations.length === 0 ? (
+        <EmptyState title="No patient history" description="Completed consultations will appear here." />
+      ) : (
+        consultations.map((consultation) => {
+          const doctor = doctorRepository.getById(consultation.doctorId);
+          const appointment = appointmentRepository.getById(consultation.appointmentId);
+          const carePlan = carePlanRepository
+            .getByPatient(patientId)
+            .find((plan) => plan.consultationId === consultation.id);
+          const items = ['Consultation', ...(carePlan ? ['Care Plan'] : [])];
+
+          return (
+        <Card key={consultation.id} contentStyle={styles.cardContent}>
           <View style={styles.visitHeader}>
             <View style={styles.iconArea}>
               <DoctorIcon name={{ android: 'history', web: 'history' }} />
             </View>
             <View style={styles.visitCopy}>
-              <AppText variant="title">{visit.date}</AppText>
-              <AppText variant="bodyStrong">{visit.doctor}</AppText>
+              <AppText variant="title">{consultation.date}</AppText>
+              <AppText variant="bodyStrong">{doctor?.fullName ?? 'Doctor'}</AppText>
               <AppText variant="body" color="textSecondary">
-                {visit.reason}
+                {appointment?.reason ?? consultation.notes ?? 'Follow-up consultation'}
               </AppText>
             </View>
           </View>
           <View style={styles.itemList}>
-            {visit.items.map((item) => (
+            {items.map((item) => (
               <StatusBadge key={item} status="info">
                 {item}
               </StatusBadge>
             ))}
           </View>
         </Card>
-      ))}
+          );
+        })
+      )}
     </DoctorScreen>
   );
 }
