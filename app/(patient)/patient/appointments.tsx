@@ -4,10 +4,13 @@ import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AppButton, AppText, Card, EmptyState, StatusBadge } from '@/components/ui';
 import { demoIdentities } from '@/config/demoIdentities';
+import type { AppointmentStatus } from '@/domain';
 import { appointmentRepository, doctorRepository } from '@/repositories';
+import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
 
 export default function PatientAppointmentsScreen() {
+  const router = useRouter();
   const appointments = appointmentRepository.listByPatient(demoIdentities.patientId);
 
   return (
@@ -28,6 +31,7 @@ export default function PatientAppointmentsScreen() {
       <AppButton
         icon={<PatientIcon name={{ android: 'calendar_month', web: 'calendar_month' }} color={colors.surface} />}
         accessibilityLabel="Book appointment"
+        onPress={() => router.push('/patient/doctors')}
       >
         Book Appointment
       </AppButton>
@@ -58,8 +62,37 @@ export default function PatientAppointmentsScreen() {
                 </AppText>
               </View>
               <StatusBadge status={appointmentStatus(appointment.status)}>
-                {appointment.status}
+                {appointmentStatusLabel(appointment.status)}
               </StatusBadge>
+              {(appointment.status === 'confirmed' || appointment.status === 'completed') && appointment.tokenNumber ? (
+                <View style={styles.tokenPanel}>
+                  <AppText variant="caption" color="textSecondary">
+                    Your Token
+                  </AppText>
+                  <AppText variant="display" color="primary">
+                    {appointment.tokenNumber}
+                  </AppText>
+                  <AppText variant="caption" color="textSecondary">
+                    {appointment.status === 'completed'
+                      ? 'Visit completed'
+                      : 'Please arrive near your appointment time.'}
+                  </AppText>
+                </View>
+              ) : null}
+              {appointment.status === 'declined' ? (
+                <>
+                  <AppText variant="body" color="textSecondary">
+                    Please choose another available appointment.
+                  </AppText>
+                  <AppButton
+                    variant="outline"
+                    onPress={() => router.push('/patient/doctors')}
+                    accessibilityLabel="Choose another appointment"
+                  >
+                    Find Another Appointment
+                  </AppButton>
+                </>
+              ) : null}
             </Card>
           );
         })
@@ -112,10 +145,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.xs,
   },
+  tokenPanel: {
+    gap: spacing.xs,
+    borderRadius: radius.medium,
+    backgroundColor: colors.primaryLight,
+    padding: spacing.md,
+  },
 });
 
-function appointmentStatus(status: 'requested' | 'confirmed' | 'completed' | 'cancelled') {
-  if (status === 'cancelled') return 'danger' as const;
+function appointmentStatus(status: AppointmentStatus) {
+  if (status === 'cancelled' || status === 'declined') return 'danger' as const;
   if (status === 'requested') return 'warning' as const;
   return status === 'completed' ? 'neutral' as const : 'success' as const;
+}
+
+function appointmentStatusLabel(status: AppointmentStatus) {
+  if (status === 'requested') return 'Waiting for doctor confirmation';
+  if (status === 'declined') return 'Request Declined';
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }

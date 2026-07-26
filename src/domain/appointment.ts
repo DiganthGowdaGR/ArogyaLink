@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'requested' | 'confirmed' | 'completed' | 'cancelled';
+export type AppointmentStatus = 'requested' | 'confirmed' | 'declined' | 'completed' | 'cancelled';
 
 export type Appointment = {
   id: string;
@@ -8,4 +8,5 @@ export type Appointment = {
   time: string;
   reason: string;
   status: AppointmentStatus;
+  tokenNumber?: string;
 };

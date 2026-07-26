@@ -1,3 +1,5 @@
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { DoctorIcon } from '@/components/doctor/DoctorIcon';
@@ -16,16 +18,41 @@ import { appointmentRepository, doctorRepository, patientRepository } from '@/re
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorQueueScreen() {
+  const router = useRouter();
+  const [, refreshQueue] = useState(0);
   const doctor = doctorRepository.getById(demoIdentities.doctorId);
   const appointments = appointmentRepository.listByDoctor(demoIdentities.doctorId);
-  const currentAppointment =
-    appointments.find(
-      (appointment) => appointment.status === 'confirmed' || appointment.status === 'requested'
-    ) ?? appointments[0];
-  const waitingAppointments = appointments.filter(
-    (appointment) => appointment.id !== currentAppointment?.id
-  );
+  const queueDate = doctor?.availability[0]?.date;
+  const confirmedAppointments = appointments
+    .filter(
+      (appointment) =>
+        appointment.status === 'confirmed' && (!queueDate || appointment.date === queueDate)
+    )
+    .sort((first, second) => compareTokens(first.tokenNumber, second.tokenNumber));
+  const currentAppointment = confirmedAppointments[0];
+  const waitingAppointments = confirmedAppointments.slice(1);
   const requests = appointments.filter((appointment) => appointment.status === 'requested');
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshQueue((value) => value + 1);
+    }, [])
+  );
+
+  const handleAccept = (appointmentId: string) => {
+    appointmentRepository.confirmWithToken(appointmentId);
+    refreshQueue((value) => value + 1);
+  };
+
+  const handleDecline = (appointmentId: string) => {
+    appointmentRepository.decline(appointmentId);
+    refreshQueue((value) => value + 1);
+  };
+
+  const handleComplete = (appointmentId: string) => {
+    appointmentRepository.completeAppointment(appointmentId);
+    refreshQueue((value) => value + 1);
+  };
 
   return (
     <DoctorScreen title="Today's Queue">
@@ -53,24 +80,55 @@ export default function DoctorQueueScreen() {
       <Card contentStyle={styles.queueContent}>
         <SectionHeader title="Queue" />
         {currentAppointment ? (
-          <QueueItem
-            current
-            token={`A-${appointments.indexOf(currentAppointment) + 5}`}
-            patient={patientRepository.getById(currentAppointment.patientId)?.fullName ?? currentAppointment.patientId}
-          />
+          <>
+            <AppText variant="caption" color="primary">
+              Current Token
+            </AppText>
+            <QueueItem
+              current
+              token={currentAppointment.tokenNumber ?? 'A-01'}
+              patient={patientRepository.getById(currentAppointment.patientId)?.fullName ?? currentAppointment.patientId}
+            />
+            <View style={styles.currentDetails}>
+              <AppText variant="bodyStrong">{currentAppointment.date} - {currentAppointment.time}</AppText>
+              <AppText variant="body" color="textSecondary">
+                {currentAppointment.reason}
+              </AppText>
+            </View>
+            <View style={styles.buttonRow}>
+              <AppButton
+                variant="secondary"
+                onPress={() =>
+                  router.push({
+                    pathname: '/doctor/patient/[id]/index',
+                    params: { id: currentAppointment.patientId },
+                  })
+                }
+                accessibilityLabel="Open current patient"
+              >
+                Open Patient
+              </AppButton>
+              <AppButton
+                onPress={() => handleComplete(currentAppointment.id)}
+                accessibilityLabel="Complete appointment and show next patient"
+              >
+                Complete &amp; Next
+              </AppButton>
+            </View>
+          </>
         ) : (
-          <EmptyState title="Queue is empty" description="Confirmed appointments will appear here." />
+          <EmptyState title="No patients waiting." description="Confirmed appointments will appear here." />
         )}
         <View style={styles.waitingList}>
+          {waitingAppointments.length > 0 ? <AppText variant="caption" color="textSecondary">Waiting</AppText> : null}
           {waitingAppointments.map((appointment, index) => (
             <QueueItem
               key={appointment.id}
-              token={`A-${index + 6}`}
+              token={appointment.tokenNumber ?? `A-${String(index + 2).padStart(2, '0')}`}
               patient={patientRepository.getById(appointment.patientId)?.fullName ?? appointment.patientId}
             />
           ))}
         </View>
-        <AppButton accessibilityLabel="Next patient">Next Patient</AppButton>
       </Card>
 
       <View style={styles.section}>
@@ -96,10 +154,18 @@ export default function DoctorQueueScreen() {
               </View>
             </View>
             <View style={styles.buttonRow}>
-              <AppButton variant="secondary" accessibilityLabel={`Accept ${patient?.fullName ?? request.patientId}`}>
+              <AppButton
+                variant="secondary"
+                onPress={() => handleAccept(request.id)}
+                accessibilityLabel={`Accept ${patient?.fullName ?? request.patientId}`}
+              >
                 Accept
               </AppButton>
-              <AppButton variant="outline" accessibilityLabel={`Decline ${patient?.fullName ?? request.patientId}`}>
+              <AppButton
+                variant="outline"
+                onPress={() => handleDecline(request.id)}
+                accessibilityLabel={`Decline ${patient?.fullName ?? request.patientId}`}
+              >
                 Decline
               </AppButton>
             </View>
@@ -138,6 +204,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
   },
+  currentDetails: {
+    gap: spacing.xs,
+  },
   queueContent: {
     gap: spacing.md,
   },
@@ -167,3 +236,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
 });
+
+function compareTokens(first: string | undefined, second: string | undefined) {
+  return tokenNumber(first) - tokenNumber(second);
+}
+
+function tokenNumber(token: string | undefined) {
+  const match = token?.match(/^A-(\d+)$/);
+
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}

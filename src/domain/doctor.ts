@@ -1,3 +1,8 @@
+export type DoctorAvailability = {
+  date: string;
+  times: string[];
+};
+
 export type Doctor = {
   id: string;
   fullName: string;
@@ -5,4 +10,5 @@ export type Doctor = {
   clinicName: string;
   city: string;
   available: boolean;
+  availability: DoctorAvailability[];
 };

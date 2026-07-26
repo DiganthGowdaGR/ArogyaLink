@@ -15,7 +15,7 @@ import {
   StatusBadge,
 } from '@/components/ui';
 import { demoIdentities } from '@/config/demoIdentities';
-import type { CareTask } from '@/domain';
+import type { AppointmentStatus, CareTask } from '@/domain';
 import { evaluateAttentionForPatient } from '@/services/attentionService';
 import {
   adherenceRepository,
@@ -127,7 +127,8 @@ export default function PatientHomeScreen() {
           <ActionCard
             icon={<PatientIcon name={{ android: 'calendar_month', web: 'calendar_month' }} />}
             label="Book Appointment"
-            onPress={() => undefined}
+            accessibilityLabel="Book appointment"
+            onPress={() => router.push('/patient/doctors')}
             style={styles.actionCard}
           />
           <ActionCard
@@ -253,8 +254,8 @@ export default function PatientHomeScreen() {
   );
 }
 
-function appointmentStatus(status: 'requested' | 'confirmed' | 'completed' | 'cancelled') {
-  if (status === 'cancelled') return 'danger' as const;
+function appointmentStatus(status: AppointmentStatus) {
+  if (status === 'cancelled' || status === 'declined') return 'danger' as const;
   if (status === 'requested') return 'warning' as const;
   return status === 'completed' ? 'neutral' as const : 'success' as const;
 }

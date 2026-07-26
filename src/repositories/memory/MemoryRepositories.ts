@@ -85,6 +85,73 @@ export class MemoryAppointmentRepository implements AppointmentRepository {
     return this.appointments.filter((appointment) => appointment.doctorId === doctorId);
   }
 
+  isSlotAvailable(doctorId: string, date: string, time: string) {
+    return !this.appointments.some(
+      (appointment) =>
+        appointment.doctorId === doctorId &&
+        appointment.date === date &&
+        appointment.time === time &&
+        appointment.status !== 'cancelled'
+    );
+  }
+
+  getConfirmedForDoctorDate(doctorId: string, date: string) {
+    return this.appointments.filter(
+      (appointment) =>
+        appointment.doctorId === doctorId &&
+        appointment.date === date &&
+        appointment.status === 'confirmed'
+    );
+  }
+
+  updateStatus(id: string, status: Appointment['status']) {
+    const appointment = this.getById(id);
+
+    return appointment ? Object.assign(appointment, { status }) : undefined;
+  }
+
+  confirmWithToken(id: string) {
+    const appointment = this.getById(id);
+
+    if (!appointment || appointment.status !== 'requested') {
+      return undefined;
+    }
+
+    const confirmedAppointments = this.getConfirmedForDoctorDate(
+      appointment.doctorId,
+      appointment.date
+    );
+    const usedTokenNumbers = confirmedAppointments
+      .map((confirmedAppointment) => getTokenNumber(confirmedAppointment.tokenNumber))
+      .filter((tokenNumber): tokenNumber is number => tokenNumber !== undefined);
+    const nextTokenNumber = Math.max(0, ...usedTokenNumbers) + 1;
+
+    return Object.assign(appointment, {
+      status: 'confirmed' as const,
+      tokenNumber: `A-${String(nextTokenNumber).padStart(2, '0')}`,
+    });
+  }
+
+  decline(id: string) {
+    const appointment = this.getById(id);
+
+    if (!appointment || appointment.status !== 'requested') {
+      return undefined;
+    }
+
+    return Object.assign(appointment, { status: 'declined' as const });
+  }
+
+  completeAppointment(id: string) {
+    const appointment = this.getById(id);
+
+    if (!appointment || appointment.status !== 'confirmed') {
+      return undefined;
+    }
+
+    return Object.assign(appointment, { status: 'completed' as const });
+  }
+
   create(appointment: Appointment) {
     this.appointments.push(appointment);
     return appointment;
@@ -95,6 +162,11 @@ export class MemoryAppointmentRepository implements AppointmentRepository {
 
     return appointment ? Object.assign(appointment, changes) : undefined;
   }
+}
+
+function getTokenNumber(tokenNumber: string | undefined) {
+  const match = tokenNumber?.match(/^A-(\d+)$/);
+  return match ? Number(match[1]) : undefined;
 }
 
 export class MemoryCarePlanRepository implements CarePlanRepository {

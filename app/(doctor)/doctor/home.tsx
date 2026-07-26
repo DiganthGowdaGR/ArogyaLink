@@ -21,23 +21,29 @@ import { colors, radius, spacing } from '@/theme';
 export default function DoctorHomeScreen() {
   const router = useRouter();
   const [, refreshAttention] = useState(0);
+  const [, refreshAppointments] = useState(0);
   useFocusEffect(
     useCallback(() => {
       evaluateAttentionForDoctor(demoIdentities.doctorId);
       refreshAttention((value) => value + 1);
+      refreshAppointments((value) => value + 1);
     }, [])
   );
   const doctor = doctorRepository.getById(demoIdentities.doctorId);
   const appointments = appointmentRepository.listByDoctor(demoIdentities.doctorId);
+  const queueDate = doctor?.availability[0]?.date;
+  const todayAppointments = appointments.filter(
+    (appointment) => !queueDate || appointment.date === queueDate
+  );
   const patients = patientRepository.list();
   const attentionItems = attentionRepository
     .listUnresolvedByDoctor(demoIdentities.doctorId)
     .sort((first, second) => severityRank(first.severity) - severityRank(second.severity));
   const requests = appointments.filter((appointment) => appointment.status === 'requested');
   const currentAppointment =
-    appointments.find(
-      (appointment) => appointment.status === 'confirmed' || appointment.status === 'requested'
-    ) ?? appointments[0];
+    todayAppointments
+      .filter((appointment) => appointment.status === 'confirmed')
+      .sort((first, second) => compareTokens(first.tokenNumber, second.tokenNumber))[0];
   const currentPatient = currentAppointment
     ? patientRepository.getById(currentAppointment.patientId)
     : undefined;
@@ -56,10 +62,10 @@ export default function DoctorHomeScreen() {
     );
   }, 0);
   const summary = [
-    { label: "Today's Appointments", value: String(appointments.length) },
+    { label: "Today's Appointments", value: String(todayAppointments.length) },
     {
       label: 'Waiting Patients',
-      value: String(appointments.filter((appointment) => appointment.status === 'requested').length),
+      value: String(todayAppointments.filter((appointment) => appointment.status === 'confirmed').length),
     },
     {
       label: 'Needs Attention',
@@ -96,7 +102,7 @@ export default function DoctorHomeScreen() {
                   Current Token
                 </AppText>
                 <AppText variant="display" color="surface">
-                  A-{appointments.indexOf(currentAppointment) + 5}
+                  {currentAppointment.tokenNumber ?? 'A-01'}
                 </AppText>
               </View>
               <View style={styles.currentCopy}>
@@ -179,10 +185,24 @@ export default function DoctorHomeScreen() {
               </View>
             </View>
             <View style={styles.buttonRow}>
-              <AppButton variant="secondary" accessibilityLabel={`Accept ${patient?.fullName ?? request.patientId}`}>
+              <AppButton
+                variant="secondary"
+                onPress={() => {
+                  appointmentRepository.confirmWithToken(request.id);
+                  refreshAppointments((value) => value + 1);
+                }}
+                accessibilityLabel={`Accept ${patient?.fullName ?? request.patientId}`}
+              >
                 Accept
               </AppButton>
-              <AppButton variant="outline" accessibilityLabel={`Decline ${patient?.fullName ?? request.patientId}`}>
+              <AppButton
+                variant="outline"
+                onPress={() => {
+                  appointmentRepository.decline(request.id);
+                  refreshAppointments((value) => value + 1);
+                }}
+                accessibilityLabel={`Decline ${patient?.fullName ?? request.patientId}`}
+              >
                 Decline
               </AppButton>
             </View>
@@ -258,4 +278,14 @@ function severityRank(severity: 'info' | 'warning' | 'high') {
   if (severity === 'high') return 0;
   if (severity === 'warning') return 1;
   return 2;
+}
+
+function compareTokens(first: string | undefined, second: string | undefined) {
+  return tokenNumber(first) - tokenNumber(second);
+}
+
+function tokenNumber(token: string | undefined) {
+  const match = token?.match(/^A-(\d+)$/);
+
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
 }

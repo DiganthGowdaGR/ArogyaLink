@@ -29,8 +29,14 @@ export type AppointmentRepository = {
   getById: (id: string) => Appointment | undefined;
   listByPatient: (patientId: string) => Appointment[];
   listByDoctor: (doctorId: string) => Appointment[];
+  isSlotAvailable: (doctorId: string, date: string, time: string) => boolean;
   create: (appointment: Appointment) => Appointment;
   update: (id: string, changes: Partial<Omit<Appointment, 'id'>>) => Appointment | undefined;
+  updateStatus: (id: string, status: Appointment['status']) => Appointment | undefined;
+  confirmWithToken: (id: string) => Appointment | undefined;
+  decline: (id: string) => Appointment | undefined;
+  completeAppointment: (id: string) => Appointment | undefined;
+  getConfirmedForDoctorDate: (doctorId: string, date: string) => Appointment[];
 };
 
 export type CarePlanRepository = {

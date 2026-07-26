@@ -41,6 +41,10 @@ export const mockSeed = {
       clinicName: 'Arogya Community Clinic',
       city: 'Bengaluru',
       available: true,
+      availability: [
+        { date: '2026-07-26', times: ['10:00', '10:30', '11:00'] },
+        { date: '2026-07-27', times: ['09:30', '10:00', '11:30'] },
+      ],
     },
     {
       id: 'doctor-002',
@@ -49,6 +53,10 @@ export const mockSeed = {
       clinicName: 'Lakeview Health Centre',
       city: 'Mysuru',
       available: true,
+      availability: [
+        { date: '2026-07-26', times: ['14:00', '14:30', '15:00'] },
+        { date: '2026-07-27', times: ['09:00', '09:30', '10:00'] },
+      ],
     },
   ] satisfies Doctor[],
   appointments: [
@@ -69,6 +77,7 @@ export const mockSeed = {
       time: '15:30',
       reason: 'Blood pressure follow-up',
       status: 'confirmed',
+      tokenNumber: 'A-01',
     },
     {
       id: 'appointment-003',
@@ -78,6 +87,7 @@ export const mockSeed = {
       time: '10:00',
       reason: 'Care plan follow-up',
       status: 'confirmed',
+      tokenNumber: 'A-01',
     },
   ] satisfies Appointment[],
   consultations: [
