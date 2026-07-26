@@ -3,15 +3,27 @@ import { StyleSheet, View } from 'react-native';
 import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AppText, Card, EmptyState, StatusBadge } from '@/components/ui';
-import { demoIdentities } from '@/config/demoIdentities';
-import { mockSeed } from '@/data/mockSeed';
-import { appointmentRepository, carePlanRepository, doctorRepository } from '@/repositories';
+import { usePatientOfflineData } from '@/services/offline';
 import { colors, radius, spacing } from '@/theme';
 
 export default function PatientHealthHistoryScreen() {
-  const consultations = mockSeed.consultations.filter(
-    (consultation) => consultation.patientId === demoIdentities.patientId
-  );
+  const {
+    appointments,
+    carePlan,
+    consultations,
+    doctor,
+    isCacheLoading,
+  } = usePatientOfflineData();
+
+  if (isCacheLoading) {
+    return (
+      <PatientScreen title="Health History" subtitle="Visits grouped by doctor, clinic, and date">
+        <AppText variant="body" color="textSecondary">
+          Loading saved health history...
+        </AppText>
+      </PatientScreen>
+    );
+  }
 
   return (
     <PatientScreen
@@ -22,12 +34,12 @@ export default function PatientHealthHistoryScreen() {
         <EmptyState title="No health history yet" description="Completed visits will appear here." />
       ) : (
         consultations.map((consultation) => {
-          const doctor = doctorRepository.getById(consultation.doctorId);
-          const appointment = appointmentRepository.getById(consultation.appointmentId);
-          const carePlan = carePlanRepository
-            .getByPatient(consultation.patientId)
-            .find((plan) => plan.consultationId === consultation.id);
-          const items = ['Consultation', ...(carePlan ? ['Care Plan'] : [])];
+          const appointment = appointments.find(
+            (item) => item.id === consultation.appointmentId
+          );
+          const consultationCarePlan =
+            carePlan?.consultationId === consultation.id ? carePlan : undefined;
+          const items = ['Consultation', ...(consultationCarePlan ? ['Care Plan'] : [])];
 
           return (
             <Card key={consultation.id} contentStyle={styles.cardContent}>

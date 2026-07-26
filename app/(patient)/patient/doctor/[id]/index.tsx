@@ -6,10 +6,12 @@ import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AppButton, AppText, Card, EmptyState, SectionHeader, StatusBadge } from '@/components/ui';
 import { doctorRepository } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
+import { useConnectivity } from '@/services/connectivity';
 
 export default function PatientDoctorProfileScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { isOffline } = useConnectivity();
   const doctor = id ? doctorRepository.getById(id) : undefined;
 
   if (!doctor) {
@@ -41,6 +43,7 @@ export default function PatientDoctorProfileScreen() {
         </AppText>
         <AppButton
           fullWidth
+          disabled={isOffline}
           accessibilityLabel={`Book appointment with ${doctor.fullName}`}
           onPress={() =>
             router.push({
@@ -51,6 +54,11 @@ export default function PatientDoctorProfileScreen() {
         >
           Book Appointment
         </AppButton>
+        {isOffline ? (
+          <AppText variant="caption" color="textSecondary" style={styles.centerText}>
+            Internet connection required to request a new appointment.
+          </AppText>
+        ) : null}
       </Card>
 
       <Card contentStyle={styles.availabilityContent}>

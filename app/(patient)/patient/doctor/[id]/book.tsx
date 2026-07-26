@@ -7,6 +7,7 @@ import { AppButton, AppText, Card, EmptyState, SectionHeader, StatusBadge } from
 import { demoIdentities } from '@/config/demoIdentities';
 import { appointmentRepository, doctorRepository } from '@/repositories';
 import { colors, radius, spacing, typography } from '@/theme';
+import { useConnectivity } from '@/services/connectivity';
 
 const commonReasons = [
   'Diabetes follow-up',
@@ -18,6 +19,7 @@ const commonReasons = [
 export default function PatientBookAppointmentScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { isOffline } = useConnectivity();
   const doctor = id ? doctorRepository.getById(id) : undefined;
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -37,6 +39,11 @@ export default function PatientBookAppointmentScreen() {
   const availableTimes = doctor.availability.find((availability) => availability.date === activeDate)?.times ?? [];
 
   const handleSubmit = () => {
+    if (isOffline) {
+      setError('Internet connection required to request a new appointment.');
+      return;
+    }
+
     const visitReason = reason.trim();
 
     if (!activeDate || !selectedTime || !visitReason) {
@@ -160,8 +167,18 @@ export default function PatientBookAppointmentScreen() {
           value={reason}
         />
 
+        {isOffline ? (
+          <AppText variant="caption" color="textSecondary">
+            Internet connection required to request a new appointment.
+          </AppText>
+        ) : null}
         {error ? <AppText variant="caption" color="danger">{error}</AppText> : null}
-        <AppButton fullWidth onPress={handleSubmit} accessibilityLabel="Request appointment">
+        <AppButton
+          fullWidth
+          disabled={isOffline}
+          onPress={handleSubmit}
+          accessibilityLabel="Request appointment"
+        >
           Request Appointment
         </AppButton>
       </Card>

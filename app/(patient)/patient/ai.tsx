@@ -4,13 +4,26 @@ import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { ActionCard, AppButton, AppText, Card } from '@/components/ui';
 import { colors, spacing } from '@/theme';
+import { useConnectivity } from '@/services/connectivity';
 
 export default function PatientAiScreen() {
+  const { isOffline } = useConnectivity();
+
   return (
     <PatientScreen
       title="Arogya AI"
       subtitle="Ask, understand, and find the right care."
     >
+      {isOffline ? (
+        <Card contentStyle={styles.offlineCard}>
+          <AppText variant="bodyStrong" color="primary">
+            Arogya AI needs an internet connection.
+          </AppText>
+          <AppText variant="body" color="textSecondary">
+            Your saved care plan and medicines are still available offline.
+          </AppText>
+        </Card>
+      ) : null}
       <Card contentStyle={styles.voiceCard}>
         <View style={styles.voiceIcon}>
           <PatientIcon
@@ -27,7 +40,7 @@ export default function PatientAiScreen() {
             Tell Arogya AI what you need help with.
           </AppText>
         </View>
-        <AppButton accessibilityLabel="Tap and speak to Arogya AI">
+        <AppButton disabled={isOffline} accessibilityLabel="Tap and speak to Arogya AI">
           Tap & Speak
         </AppButton>
       </Card>
@@ -91,6 +104,9 @@ const styles = StyleSheet.create({
   },
   centerText: {
     textAlign: 'center',
+  },
+  offlineCard: {
+    gap: spacing.sm,
   },
   safetyNote: {
     textAlign: 'center',

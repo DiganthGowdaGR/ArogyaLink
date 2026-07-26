@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 
 import { LoadingState, ScreenContainer } from '@/components/ui';
 import { AuthSessionProvider, useAuthSession } from '@/features/auth/AuthContext';
+import { ConnectivityProvider } from '@/services/connectivity';
+import { PatientOfflineDataProvider } from '@/services/offline';
 
 function AppNavigator() {
   const { isRestoring } = useAuthSession();
@@ -21,8 +23,12 @@ function AppNavigator() {
 export default function RootLayout() {
   return (
     <AuthSessionProvider>
-      <AppNavigator />
-      <StatusBar style="auto" />
+      <ConnectivityProvider>
+        <PatientOfflineDataProvider>
+          <AppNavigator />
+          <StatusBar style="auto" />
+        </PatientOfflineDataProvider>
+      </ConnectivityProvider>
     </AuthSessionProvider>
   );
 }

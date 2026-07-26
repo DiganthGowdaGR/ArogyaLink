@@ -5,59 +5,138 @@ import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AdherenceReasonPanel } from '@/components/patient/AdherenceReasonPanel';
 import { AppButton, AppText, Card, EmptyState, SectionHeader, StatusBadge } from '@/components/ui';
-import { demoIdentities } from '@/config/demoIdentities';
 import type { CareTask } from '@/domain';
 import { evaluateAttentionForPatient } from '@/services/attentionService';
 import {
   adherenceRepository,
   carePlanRepository,
   careTaskRepository,
-  doctorRepository,
 } from '@/repositories';
 import { colors, radius, spacing } from '@/theme';
+import { usePatientOfflineData } from '@/services/offline';
+import {
+  enqueueAction,
+  type CompleteCareTaskAction,
+  type MissCareTaskAction,
+} from '@/services/offlineSync';
 
 export default function PatientMedicationsScreen() {
   const [, refreshMedication] = useState(0);
   const [reasonTaskId, setReasonTaskId] = useState<string | null>(null);
-  const carePlan = carePlanRepository.getActiveByPatient(demoIdentities.patientId);
-  const medications = carePlan
-    ? carePlanRepository.listItemsByCarePlan(carePlan.id).filter((item) => item.type === 'medication')
-    : [];
-  const careTasks = careTaskRepository.listByPatient(demoIdentities.patientId);
-  const adherenceEvents = adherenceRepository.listByPatient(demoIdentities.patientId);
-  const doctor = carePlan ? doctorRepository.getById(carePlan.doctorId) : undefined;
+  const {
+    adherenceEvents,
+    carePlan,
+    carePlanItems,
+    careTasks,
+    doctor,
+    isCacheLoading,
+    isOffline,
+    pendingActions,
+    refreshCache,
+    refreshPendingActions,
+    updateCachedTask,
+  } = usePatientOfflineData();
+  const medications = carePlanItems.filter((item) => item.type === 'medication');
 
-  const handleCompleted = (task: CareTask) => {
+  if (isCacheLoading) {
+    return (
+      <PatientScreen title="My Medications" subtitle="Medicines prescribed by your doctor">
+        <AppText variant="body" color="textSecondary">
+          Loading saved care information...
+        </AppText>
+      </PatientScreen>
+    );
+  }
+
+  const handleCompleted = async (task: CareTask) => {
     const recordedAt = new Date();
     const scheduledAt = new Date(task.scheduledAt);
     const status =
       recordedAt.getTime() - scheduledAt.getTime() > 60 * 60 * 1000 ? 'late' : 'onTime';
+    const recordedAtValue = recordedAt.toISOString();
 
-    careTaskRepository.markCompleted(task.id, recordedAt.toISOString());
-    adherenceRepository.create({
-      id: `adherence-event-${recordedAt.toISOString()}`,
-      careTaskId: task.id,
-      patientId: task.patientId,
-      recordedAt: recordedAt.toISOString(),
-      status,
-    });
-    evaluateAttentionForPatient(task.patientId);
+    if (isOffline) {
+      const actionId = `offline-completeCareTask-${task.id}`;
+      const action: CompleteCareTaskAction = {
+        id: actionId,
+        type: 'completeCareTask',
+        patientId: task.patientId,
+        createdAt: recordedAtValue,
+        status: 'pending',
+        payload: {
+          careTaskId: task.id,
+          completedAt: recordedAtValue,
+          adherenceEventId: `adherence-${actionId}`,
+          adherenceStatus: status,
+        },
+      };
+
+      await enqueueAction(action);
+      await updateCachedTask({
+        taskId: task.id,
+        status: 'completed',
+        recordedAt: recordedAtValue,
+        adherenceEventId: action.payload.adherenceEventId,
+        adherenceStatus: status,
+      });
+      await refreshPendingActions();
+    } else {
+      careTaskRepository.markCompleted(task.id, recordedAtValue);
+      adherenceRepository.create({
+        id: `adherence-event-${recordedAtValue}`,
+        careTaskId: task.id,
+        patientId: task.patientId,
+        recordedAt: recordedAtValue,
+        status,
+      });
+      evaluateAttentionForPatient(task.patientId);
+      await refreshCache();
+    }
     refreshMedication((value) => value + 1);
   };
 
-  const handleMissed = (task: CareTask, reason: string) => {
+  const handleMissed = async (task: CareTask, reason: string) => {
     const recordedAt = new Date().toISOString();
 
-    careTaskRepository.markMissed(task.id);
-    adherenceRepository.create({
-      id: `adherence-event-${recordedAt}`,
-      careTaskId: task.id,
-      patientId: task.patientId,
-      recordedAt,
-      status: 'missed',
-      reason,
-    });
-    evaluateAttentionForPatient(task.patientId);
+    if (isOffline) {
+      const actionId = `offline-missCareTask-${task.id}`;
+      const action: MissCareTaskAction = {
+        id: actionId,
+        type: 'missCareTask',
+        patientId: task.patientId,
+        createdAt: recordedAt,
+        status: 'pending',
+        payload: {
+          careTaskId: task.id,
+          recordedAt,
+          adherenceEventId: `adherence-${actionId}`,
+          reason,
+        },
+      };
+
+      await enqueueAction(action);
+      await updateCachedTask({
+        taskId: task.id,
+        status: 'missed',
+        recordedAt,
+        adherenceEventId: action.payload.adherenceEventId,
+        adherenceStatus: 'missed',
+        reason,
+      });
+      await refreshPendingActions();
+    } else {
+      careTaskRepository.markMissed(task.id);
+      adherenceRepository.create({
+        id: `adherence-event-${recordedAt}`,
+        careTaskId: task.id,
+        patientId: task.patientId,
+        recordedAt,
+        status: 'missed',
+        reason,
+      });
+      evaluateAttentionForPatient(task.patientId);
+      await refreshCache();
+    }
     setReasonTaskId(null);
     refreshMedication((value) => value + 1);
   };
@@ -71,6 +150,11 @@ export default function PatientMedicationsScreen() {
       title="My Medications"
       subtitle="Medicines prescribed by your doctor"
     >
+      {isOffline ? (
+        <AppText variant="caption" color="textSecondary">
+          Saved on this device
+        </AppText>
+      ) : null}
       {medications.length === 0 ? (
         <EmptyState title="No medications" description="Your active prescriptions will appear here." />
       ) : (
@@ -116,19 +200,21 @@ export default function PatientMedicationsScreen() {
                       {medication.durationDays ? `${medication.durationDays} days` : 'Ongoing'}
                     </AppText>
                   </View>
-                  <StatusBadge status={statusBadge(status)}>{status}</StatusBadge>
-                </View>
+                <StatusBadge status={statusBadge(status)}>
+                  {hasPendingSync(medicationTask?.id, pendingActions) ? `${status} · Pending Sync` : status}
+                </StatusBadge>
+              </View>
                 {medicationTask?.status === 'pending' ? (
                   reasonTaskId === medicationTask.id ? (
                     <AdherenceReasonPanel
                       onCancel={() => setReasonTaskId(null)}
-                      onSubmit={(reason) => handleMissed(medicationTask, reason)}
+                      onSubmit={(reason) => void handleMissed(medicationTask, reason)}
                     />
                   ) : (
                     <View style={styles.taskActions}>
                       <AppButton
                         variant="secondary"
-                        onPress={() => handleCompleted(medicationTask)}
+                        onPress={() => void handleCompleted(medicationTask)}
                         accessibilityLabel="Taken"
                       >
                         Taken
@@ -302,6 +388,13 @@ function statusBadge(status: string) {
   if (status === 'Late') return 'info' as const;
   if (status === 'Missed') return 'danger' as const;
   return 'warning' as const;
+}
+
+function hasPendingSync(
+  taskId: string | undefined,
+  actions: { payload: { careTaskId: string } }[]
+) {
+  return taskId ? actions.some((action) => action.payload.careTaskId === taskId) : false;
 }
 
 function formatEventTime(value: string) {

@@ -3,15 +3,30 @@ import { StyleSheet, View } from 'react-native';
 import { PatientIcon } from '@/components/patient/PatientIcon';
 import { PatientScreen } from '@/components/patient/PatientScreen';
 import { AppButton, AppText, Card, EmptyState, StatusBadge } from '@/components/ui';
-import { demoIdentities } from '@/config/demoIdentities';
 import type { AppointmentStatus } from '@/domain';
-import { appointmentRepository, doctorRepository } from '@/repositories';
+import { doctorRepository } from '@/repositories';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '@/theme';
+import { usePatientOfflineData } from '@/services/offline';
 
 export default function PatientAppointmentsScreen() {
   const router = useRouter();
-  const appointments = appointmentRepository.listByPatient(demoIdentities.patientId);
+  const {
+    appointments,
+    doctor: cachedDoctor,
+    isCacheLoading,
+    isOffline,
+  } = usePatientOfflineData();
+
+  if (isCacheLoading) {
+    return (
+      <PatientScreen title="Appointments" subtitle="Manage your doctor visits">
+        <AppText variant="body" color="textSecondary">
+          Loading saved appointments...
+        </AppText>
+      </PatientScreen>
+    );
+  }
 
   return (
     <PatientScreen title="Appointments" subtitle="Manage your doctor visits">
@@ -31,16 +46,22 @@ export default function PatientAppointmentsScreen() {
       <AppButton
         icon={<PatientIcon name={{ android: 'calendar_month', web: 'calendar_month' }} color={colors.surface} />}
         accessibilityLabel="Book appointment"
-        onPress={() => router.push('/patient/doctors')}
+        disabled={isOffline}
+        onPress={isOffline ? undefined : () => router.push('/patient/doctors')}
       >
         Book Appointment
       </AppButton>
+      {isOffline ? (
+        <AppText variant="caption" color="textSecondary">
+          Internet connection required to request a new appointment.
+        </AppText>
+      ) : null}
 
       {appointments.length === 0 ? (
         <EmptyState title="No appointments yet" description="Your doctor visits will appear here." />
       ) : (
         appointments.map((appointment) => {
-          const doctor = doctorRepository.getById(appointment.doctorId);
+          const doctor = cachedDoctor ?? doctorRepository.getById(appointment.doctorId);
 
           return (
             <Card key={appointment.id} contentStyle={styles.cardContent}>
