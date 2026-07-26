@@ -9,6 +9,7 @@ import {
   AppText,
   Card,
   EmptyState,
+  LoadingState,
   SectionHeader,
   StatusBadge,
 } from '@/components/ui';
@@ -23,11 +24,17 @@ import {
   patientRepository,
 } from '@/repositories';
 import { evaluateAttentionForPatient } from '@/services/attentionService';
+import { useConnectivity } from '@/services/connectivity';
+import { aiService, buildDoctorPatientContext } from '@/services/ai';
 import { colors, radius, spacing } from '@/theme';
 
 export default function DoctorPatientSnapshotScreen() {
   const router = useRouter();
   const [, refreshAlerts] = useState(0);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const { isOffline } = useConnectivity();
   const { id } = useLocalSearchParams<{ id: string }>();
   const patientId = id ?? demoIdentities.patientId;
   useFocusEffect(
@@ -81,6 +88,35 @@ export default function DoctorPatientSnapshotScreen() {
     .listUnresolvedByPatient(patientId)
     .sort((first, second) => severityRank(first.severity) - severityRank(second.severity));
 
+  const handleGenerateSummary = async () => {
+    if (isOffline || isGeneratingSummary) {
+      return;
+    }
+
+    const context = buildDoctorPatientContext(patientId);
+
+    if (!context) {
+      setSummaryError('Summary unavailable right now. Patient records remain available below.');
+      return;
+    }
+
+    setIsGeneratingSummary(true);
+    setSummaryError(null);
+
+    try {
+      const result = await aiService.summarizeForDoctor(
+        context.patientName,
+        context.history,
+        context.carePlan
+      );
+      setSummary(result.text);
+    } catch {
+      setSummaryError('Summary unavailable right now. Patient records remain available below.');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
   if (!patient) {
     return (
       <DoctorScreen title="Patient Snapshot">
@@ -130,6 +166,40 @@ export default function DoctorPatientSnapshotScreen() {
             </View>
           ))
         )}
+      </Card>
+
+      <Card contentStyle={styles.cardContent}>
+        <SectionHeader
+          title="AI Patient Summary"
+          subtitle="A concise view of recorded patient information"
+        />
+        {isOffline ? (
+          <AppText variant="body" color="textSecondary">
+            AI summary requires internet access.
+          </AppText>
+        ) : null}
+        {isGeneratingSummary ? (
+          <LoadingState message="Generating patient summary..." />
+        ) : summary ? (
+          <AppText variant="body">{summary}</AppText>
+        ) : (
+          <AppText variant="body" color="textSecondary">
+            Generate a concise summary from the recorded patient context.
+          </AppText>
+        )}
+        {summaryError ? <AppText variant="body" color="danger">{summaryError}</AppText> : null}
+        <AppButton
+          variant="secondary"
+          disabled={isOffline || isGeneratingSummary}
+          loading={isGeneratingSummary}
+          onPress={() => void handleGenerateSummary()}
+          accessibilityLabel={summary ? 'Refresh patient summary' : 'Generate patient summary'}
+        >
+          {summary ? 'Refresh Summary' : 'Generate Summary'}
+        </AppButton>
+        <AppText variant="caption" color="textSecondary">
+          AI-generated summary from recorded ArogyaLink data. Verify before clinical use.
+        </AppText>
       </Card>
 
       <Card contentStyle={styles.cardContent}>
