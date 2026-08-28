@@ -116,6 +116,10 @@ There is currently no `test` script or configured automated test runner in `pack
 
 ## How the Prototype Works
 
+![ArogyaLink architecture](docs/architecture/arogyalink-architecture.svg)
+
+The diagram is also available as [`docs/architecture/arogyalink-architecture.svg`](docs/architecture/arogyalink-architecture.svg).
+
 ```text
 Local patient/doctor auth
           |
