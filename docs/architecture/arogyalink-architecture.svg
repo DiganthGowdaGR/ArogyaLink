@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-labelledby="title desc">
+  <title id="title">ArogyaLink application architecture</title>
+  <desc id="desc">Architecture diagram showing patient and doctor experiences through Expo Router, shared contexts, in-memory repositories, healthcare services, local persistence, and a future backend boundary.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52606d" />
+    </marker>
+    <style>
+      .title { font: 700 30px Arial, sans-serif; fill: #102a43; }
+      .subtitle { font: 400 16px Arial, sans-serif; fill: #52606d; }
+      .section { font: 700 15px Arial, sans-serif; fill: #334e68; letter-spacing: 1px; }
+      .box-title { font: 700 18px Arial, sans-serif; fill: #102a43; }
+      .box-text { font: 400 14px Arial, sans-serif; fill: #334e68; }
+      .small { font: 400 13px Arial, sans-serif; fill: #52606d; }
+      .line { stroke: #52606d; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke: #829ab1; stroke-width: 2; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1400" height="920" fill="#f7fafc" />
+  <text x="70" y="62" class="title">ArogyaLink Architecture</text>
+  <text x="70" y="92" class="subtitle">Current Phase 7 prototype: local data, offline-first patient support, and safe mock AI assistance</text>
+
+  <text x="70" y="142" class="section">USER EXPERIENCES</text>
+  <rect x="70" y="165" width="270" height="145" rx="8" fill="#e6fffa" stroke="#2c7a7b" stroke-width="2" />
+  <text x="95" y="200" class="box-title">Patient experience</text>
+  <text x="95" y="228" class="box-text">Home and care tasks</text>
+  <text x="95" y="251" class="box-text">Appointments and doctor search</text>
+  <text x="95" y="274" class="box-text">Medications and health history</text>
+  <text x="95" y="297" class="box-text">Text-based Arogya AI</text>
+
+  <rect x="70" y="345" width="270" height="145" rx="8" fill="#ebf8ff" stroke="#2b6cb0" stroke-width="2" />
+  <text x="95" y="380" class="box-title">Doctor experience</text>
+  <text x="95" y="408" class="box-text">Dashboard and appointment requests</text>
+  <text x="95" y="431" class="box-text">Patient records and queue</text>
+  <text x="95" y="454" class="box-text">Care plans and care tasks</text>
+  <text x="95" y="477" class="box-text">Adherence, alerts, and AI summary</text>
+
+  <text x="410" y="142" class="section">APPLICATION SHELL</text>
+  <rect x="410" y="165" width="360" height="325" rx="8" fill="#ffffff" stroke="#486581" stroke-width="2" />
+  <text x="440" y="202" class="box-title">React Native + Expo</text>
+  <text x="440" y="228" class="box-text">Expo Router file-based navigation</text>
+  <line x1="440" y1="242" x2="740" y2="242" stroke="#d9e2ec" stroke-width="1" />
+  <text x="440" y="274" class="box-text">(auth) Login and Register</text>
+  <text x="440" y="299" class="box-text">(patient) Patient tab shell</text>
+  <text x="440" y="324" class="box-text">(doctor) Doctor tab shell</text>
+  <text x="440" y="349" class="box-text">Shared UI and theme tokens</text>
+  <text x="440" y="374" class="box-text">Role-based route protection</text>
+  <text x="440" y="416" class="small">Web export: Expo static output</text>
+  <text x="440" y="440" class="small">Native target: React Native / Expo</text>
+  <text x="440" y="464" class="small">Language: strict TypeScript</text>
+
+  <text x="840" y="142" class="section">SHARED APPLICATION SERVICES</text>
+  <rect x="840" y="165" width="480" height="325" rx="8" fill="#fffaf0" stroke="#b7791f" stroke-width="2" />
+  <text x="870" y="202" class="box-title">Contexts and local coordination</text>
+  <text x="870" y="237" class="box-text">AuthSessionProvider</text>
+  <text x="1090" y="237" class="small">role session and logout</text>
+  <text x="870" y="272" class="box-text">ConnectivityProvider</text>
+  <text x="1090" y="272" class="small">NetInfo state</text>
+  <text x="870" y="307" class="box-text">PatientOfflineDataProvider</text>
+  <text x="1090" y="307" class="small">cache and optimistic state</text>
+  <text x="870" y="350" class="box-text">CareLoop and attention services</text>
+  <text x="870" y="385" class="box-text">Offline sync queue</text>
+  <text x="1090" y="385" class="small">duplicate-safe replay</text>
+  <text x="870" y="420" class="box-text">Arogya AI service</text>
+  <text x="1090" y="420" class="small">typed mock provider + guardrails</text>
+  <text x="870" y="463" class="small">No live backend or AI API is connected</text>
+
+  <text x="70" y="550" class="section">DOMAIN AND DATA LAYER</text>
+  <rect x="70" y="575" width="490" height="235" rx="8" fill="#ffffff" stroke="#486581" stroke-width="2" />
+  <text x="100" y="612" class="box-title">Healthcare domain</text>
+  <text x="100" y="645" class="box-text">Patient | Doctor | Appointment</text>
+  <text x="100" y="672" class="box-text">Consultation | CarePlan | CarePlanItem</text>
+  <text x="100" y="699" class="box-text">CareTask | AdherenceEvent | AttentionItem</text>
+  <text x="100" y="747" class="box-text">Central mock seed</text>
+  <text x="100" y="775" class="small">src/data/mockSeed.ts</text>
+
+  <rect x="620" y="575" width="390" height="235" rx="8" fill="#f0fff4" stroke="#2f855a" stroke-width="2" />
+  <text x="650" y="612" class="box-title">Repository layer</text>
+  <text x="650" y="647" class="box-text">Repository contracts</text>
+  <text x="650" y="678" class="box-text">Memory repositories</text>
+  <text x="650" y="709" class="box-text">Read and write domain operations</text>
+  <text x="650" y="758" class="small">Temporary source of truth for the prototype</text>
+  <text x="650" y="782" class="small">Data resets when the JS runtime restarts</text>
+
+  <rect x="1070" y="575" width="250" height="235" rx="8" fill="#f7f5ff" stroke="#6b46c1" stroke-width="2" />
+  <text x="1100" y="612" class="box-title">Local persistence</text>
+  <text x="1100" y="650" class="box-text">AsyncStorage</text>
+  <text x="1100" y="680" class="box-text">Mock auth session</text>
+  <text x="1100" y="710" class="box-text">Patient offline cache</text>
+  <text x="1100" y="740" class="box-text">Pending sync queue</text>
+  <text x="1100" y="782" class="small">Passwords are not persisted</text>
+
+  <text x="70" y="865" class="section">FUTURE BOUNDARY</text>
+  <rect x="300" y="842" width="760" height="52" rx="8" fill="#edf2f7" stroke="#829ab1" stroke-width="2" stroke-dasharray="8 7" />
+  <text x="330" y="875" class="box-text">Secure backend boundary: future API, database, and server-side AI provider</text>
+  <text x="1090" y="875" class="small">Not implemented</text>
+
+  <path d="M 340 235 L 410 235" class="line" />
+  <path d="M 340 415 L 410 415" class="line" />
+  <path d="M 770 235 L 840 235" class="line" />
+  <path d="M 770 415 L 840 415" class="line" />
+  <path d="M 1020 490 L 1020 540 L 815 540 L 815 575" class="line" />
+  <path d="M 1080 490 L 1080 540 L 1195 540 L 1195 575" class="line" />
+  <path d="M 560 690 L 620 690" class="line" />
+  <path d="M 1010 690 L 1070 690" class="line" />
+  <path d="M 815 810 L 815 835" class="dashed" />
+</svg>
